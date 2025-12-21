@@ -1,0 +1,36 @@
+# --- Python Specific ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+
+# --- Project Specific Results ---
+# We ignore the entire results directory because it contains 
+# sensitive IP information, scan logs, and reports.
+recon/results/
+
+# --- Tools & Temporary Files ---
+# Ignore any specific tool-generated outputs that might escape the results folder
+*.xml
+*.json
+*.txt
+!requirements.txt
+!README.md
+
+# --- OS Specific ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# --- Development Environment ---
+.idea/
+.vscode/
+*.swp
+*.swo
