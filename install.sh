@@ -40,8 +40,6 @@ echo "[*] Installing Python libraries..."
 pip3 install --upgrade pip
 pip3 install requests xmltodict python-magic rich
 
-echo "[*] Setting up directory structure..."
-mkdir -p recon/results/{scans,reports,data}
 mkdir -p wordlists
 
 echo "[*] Downloading additional wordlists..."
