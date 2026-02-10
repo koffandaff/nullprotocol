@@ -227,13 +227,20 @@
                                 <h6 class="text-warning"><i class="bi bi-lightning me-1"></i>Exploits</h6>
                                 {% for e in wt.exploits[:5] %}
                                 <div class="exploit-item mb-2 p-2 rounded">
-                                    <div class="fw-bold">{{ e.title }}</div>
+                                    <div class="fw-bold d-flex align-items-center gap-2">
+                                        {{ e.title }}
+                                        {% if e.cve %}
+                                        <a href="https://nvd.nist.gov/vuln/detail/{{ e.cve }}" target="_blank"
+                                            class="badge bg-danger text-decoration-none" title="View on NVD">
+                                            <i class="bi bi-shield-exclamation me-1"></i>{{ e.cve }}
+                                        </a>
+                                        {% endif %}
+                                    </div>
                                     <small class="text-muted">
                                         Vector: {{ e.attack_vector }} |
                                         Severity: <span
                                             class="text-{{ 'danger' if e.severity in ['critical','high'] else 'warning' }}">{{
                                             e.severity|upper }}</span>
-                                        {% if e.cve %} | CVE: {{ e.cve }}{% endif %}
                                     </small>
                                 </div>
                                 {% endfor %}
@@ -264,6 +271,7 @@
                                 <th>Service</th>
                                 <th>Version</th>
                                 <th>Exploits</th>
+                                <th>CVEs</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -278,6 +286,16 @@
                                     <span class="badge bg-danger">{{ st.exploits|length }}</span>
                                     {% else %}
                                     <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if st.exploits %}
+                                    {% for ex in st.exploits if ex.cve %}
+                                    <a href="https://nvd.nist.gov/vuln/detail/{{ ex.cve }}" target="_blank"
+                                        class="badge bg-danger text-decoration-none me-1 mb-1" title="{{ ex.title }}">
+                                        {{ ex.cve }}
+                                    </a>
+                                    {% endfor %}
                                     {% endif %}
                                 </td>
                             </tr>

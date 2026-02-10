@@ -749,7 +749,9 @@ class ReconEnhancer:
                         f.write(analysis + "\n")
                     
                     # Also try per-service exploit suggestions
-                    for target in service_targets[:5]:
+                    svc_targets = service_targets[:5]
+                    for idx, target in enumerate(svc_targets, 1):
+                        status_msg(f"Generating exploit suggestions [{idx}/{len(svc_targets)}]: {target['service']} on {target['ip']}...")
                         suggestion = suggest_exploits_with_ollama(
                             target['service'],
                             target.get('version', ''),
@@ -760,6 +762,7 @@ class ReconEnhancer:
                             with open(self.report_file, 'a') as f:
                                 f.write(f"\n--- Exploit Suggestions for {target['service']} on {target['ip']} ---\n")
                                 f.write(suggestion + "\n")
+                            success_msg(f"Suggestions complete for {target['service']}")
             except Exception as e:
                 warning_msg(f"Ollama analysis failed: {e}")
         else:

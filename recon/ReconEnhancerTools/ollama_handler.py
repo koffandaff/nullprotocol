@@ -62,7 +62,11 @@ def get_available_models():
 def ask_ollama(prompt, model=None, system_prompt=None, max_tokens=2048):
     """Send a prompt to Ollama and return the full response text.
     Uses the /api/generate endpoint (non-streaming for simplicity).
+    Shows a progress indicator so the user knows it's working.
     """
+    import threading
+    import time as _time
+
     if not model:
         models = get_available_models()
         if not models:
@@ -84,12 +88,35 @@ def ask_ollama(prompt, model=None, system_prompt=None, max_tokens=2048):
     if system_prompt:
         payload["system"] = system_prompt
 
+    # Progress indicator — prints elapsed time while waiting
+    _stop_progress = threading.Event()
+    def _progress_printer():
+        start = _time.time()
+        phases = [
+            "Loading model into memory",
+            "Processing prompt tokens",
+            "Generating response",
+            "Finalizing output",
+        ]
+        while not _stop_progress.is_set():
+            elapsed = int(_time.time() - start)
+            phase_idx = min(elapsed // 30, len(phases) - 1)
+            console.print(f"  [dim]> Ollama: {phases[phase_idx]}... ({elapsed}s elapsed)[/dim]", end="\r")
+            _stop_progress.wait(10)
+
+    progress_thread = threading.Thread(target=_progress_printer, daemon=True)
+    progress_thread.start()
+
     try:
         resp = requests.post(
             f"{OLLAMA_BASE}/api/generate",
             json=payload,
             timeout=300
         )
+        _stop_progress.set()
+        progress_thread.join(timeout=2)
+        console.print()  # Clear the progress line
+
         if resp.status_code == 200:
             data = resp.json()
             return data.get('response', '')
@@ -97,9 +124,13 @@ def ask_ollama(prompt, model=None, system_prompt=None, max_tokens=2048):
             error_msg(f"Ollama returned status {resp.status_code}")
             return None
     except requests.exceptions.Timeout:
+        _stop_progress.set()
+        progress_thread.join(timeout=2)
         error_msg("Ollama request timed out (300s)")
         return None
     except Exception as e:
+        _stop_progress.set()
+        progress_thread.join(timeout=2)
         error_msg(f"Ollama error: {e}")
         return None
 

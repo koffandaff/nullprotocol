@@ -187,20 +187,26 @@ def main():
     warning_msg("This module launches active attacks. Use only with authorization!")
     console.print()
 
-    # Scan results are saved relative to CWD (e.g. recon/results/<domain>/FinalReport/)
-    # Try CWD-relative first, then fallback to script-relative paths
-    _cwd_results = os.path.join(os.getcwd(), 'results')
-    _script_results = os.path.join(os.path.dirname(__file__), 'results')
-    _parent_results = os.path.join(os.path.dirname(__file__), '..', 'results')
+    # Results live at recon/results/<domain>/FinalReport/
+    # When launched from recon/main.py, CWD = brute/ and __file__ = brute/main.py
+    # So we need to check multiple locations:
+    _candidates = [
+        os.path.join(os.getcwd(), 'results'),                              # CWD/results (if run from recon/)
+        os.path.join(os.path.dirname(__file__), '..', 'recon', 'results'), # brute/../recon/results (launched from brute/)
+        os.path.join(os.path.dirname(__file__), 'results'),                # brute/results (unlikely but covered)
+        os.path.join(os.path.dirname(__file__), '..', 'results'),          # fsociety/results (old layout)
+    ]
 
+    results_dir = None
+    for candidate in _candidates:
+        if os.path.isdir(candidate):
+            results_dir = candidate
+            break
 
-
-    if os.path.isdir(_cwd_results):
-        results_dir = _cwd_results
-    elif os.path.isdir(_script_results):
-        results_dir = _script_results
-    else:
-        results_dir = _parent_results
+    if not results_dir:
+        # Fallback — show all paths tried for debugging
+        error_msg(f"Results directory not found. Searched: {', '.join(_candidates)}")
+        return
     data, domain = load_recon_data(results_dir)
 
     if not data:
