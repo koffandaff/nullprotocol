@@ -81,6 +81,18 @@ def load_report_txt(domain_dir):
     return None
 
 
+def load_brute_results(domain_dir):
+    """Load brute force results if they exist."""
+    brute_path = os.path.join(RESULTS_DIR, domain_dir, 'BruteForce', 'brute_results.json')
+    if os.path.exists(brute_path):
+        try:
+            with open(brute_path, 'r') as f:
+                return json.load(f)
+        except Exception:
+            return None
+    return None
+
+
 # ─── ROUTES ────────────────────────────────────────────────
 
 @app.route('/')
@@ -116,13 +128,21 @@ def scan_detail(domain_dir):
     crawler_data = data.get('crawler', {})
     sqli_count = sum(len(c.get('potential_sqli', [])) for c in crawler_data.values()) if isinstance(crawler_data, dict) else 0
 
+    # Brute force results
+    brute_results = load_brute_results(domain_dir)
+    brute_success_count = 0
+    if brute_results:
+        brute_success_count = sum(1 for r in brute_results if r.get('result', {}).get('success'))
+
     return render_template('scan_detail.html',
                            data=data,
                            domain_dir=domain_dir,
                            report_txt=report_txt,
                            vuln_stats=vuln_stats,
                            exploit_count=exploit_count,
-                           sqli_count=sqli_count)
+                           sqli_count=sqli_count,
+                           brute_results=brute_results,
+                           brute_success_count=brute_success_count)
 
 
 @app.route('/api/scan/<domain_dir>')

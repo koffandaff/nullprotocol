@@ -25,13 +25,20 @@ def main():
     console.print("  [bold cyan]1[/bold cyan]  -->  I have a [bold]Domain Name[/bold]")
     console.print("  [bold cyan]2[/bold cyan]  -->  I have an [bold]IP Address[/bold]")
     console.print("  [bold cyan]3[/bold cyan]  -->  View Previous Scans (HostRecon)")
+    console.print("  [bold cyan]4[/bold cyan]  -->  Launch [bold]Brute Force[/bold] Module")
     console.print()
 
-    choice = Prompt.ask("  [bold white]Select mode[/bold white]", choices=["1", "2", "3"], default="1")
+    choice = Prompt.ask("  [bold white]Select mode[/bold white]", choices=["1", "2", "3", "4"], default="1")
 
     # ── View Previous Scans ──
     if choice == '3':
         _launch_hostrecon()
+        post_recon_interactive()
+        return
+
+    # ── Brute Force Module ──
+    if choice == '4':
+        _launch_brute()
         post_recon_interactive()
         return
 

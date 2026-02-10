@@ -421,9 +421,12 @@ def sqlmap_url(opportunity, output_dir):
     # Check for SQLi confirmation
     injectable = False
     if result.get('output'):
-        injectable = any(indicator in result['output'].lower() for indicator in [
-            'injectable', 'is vulnerable', 'sqlmap identified',
-            'parameter appears to be', 'sql injection'
+        out_lower = result['output'].lower()
+        injectable = any(indicator in out_lower for indicator in [
+            'is vulnerable',
+            'sqlmap identified the following injection point',
+            'the back-end dbms is',
+            'available databases',
         ])
 
     result['injectable'] = injectable
@@ -462,9 +465,12 @@ def sqlmap_form(opportunity, output_dir):
 
     injectable = False
     if result.get('output'):
-        injectable = any(indicator in result['output'].lower() for indicator in [
-            'injectable', 'is vulnerable', 'sqlmap identified',
-            'parameter appears to be', 'sql injection'
+        out_lower = result['output'].lower()
+        injectable = any(indicator in out_lower for indicator in [
+            'is vulnerable',
+            'sqlmap identified the following injection point',
+            'the back-end dbms is',
+            'available databases',
         ])
 
     result['injectable'] = injectable

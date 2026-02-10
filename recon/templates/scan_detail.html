@@ -83,6 +83,16 @@
                     </div>
                 </div>
             </div>
+            {% if brute_results %}
+            <div class="col-md-3 col-6">
+                <div class="card text-center stat-card">
+                    <div class="card-body py-3">
+                        <div class="display-6 fw-bold" style="color: #28a745;">{{ brute_success_count }}</div>
+                        <small class="text-muted">Brute Force Hits</small>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         <!-- Vulnerability Severity Breakdown -->
@@ -343,6 +353,67 @@
             </div>
         </div>
         {% endif %}
+
+        <!-- Brute Force Results -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-key-fill text-warning me-2"></i>Brute Force Results
+                {% if brute_results %}
+                <span class="badge bg-warning ms-2">{{ brute_results|length }} attacks</span>
+                {% if brute_success_count > 0 %}
+                <span class="badge bg-success ms-1">{{ brute_success_count }} hit{{ 's' if brute_success_count != 1
+                    }}</span>
+                {% endif %}
+                {% endif %}
+            </div>
+            <div class="card-body{% if brute_results %} p-0{% endif %}">
+                {% if brute_results %}
+                <div class="table-responsive">
+                    <table class="table table-dark table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Attack</th>
+                                <th>Status</th>
+                                <th>Detail</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in brute_results %}
+                            <tr>
+                                <td>{{ r.opportunity[:70] }}</td>
+                                <td>
+                                    {% if r.error is defined %}
+                                    <span class="badge bg-danger">FAILED</span>
+                                    {% elif r.result is defined and r.result.success %}
+                                    <span class="badge bg-success">SUCCESS</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">NO FINDINGS</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if r.error is defined %}
+                                    <span class="text-danger">{{ r.error[:50] }}</span>
+                                    {% elif r.result is defined and r.result.success %}
+                                    <span class="brute-creds">{{ r.result.message[:60] }}</span>
+                                    {% elif r.result is defined %}
+                                    <span class="text-muted">{{ r.result.message[:60] if r.result.message else 'No
+                                        results' }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="brute-empty">
+                    <i class="bi bi-shield-lock" style="font-size: 2rem; opacity: 0.3;"></i>
+                    <p class="mt-2 mb-0">No brute force attacks have been run for this scan.</p>
+                    <small>Run the Brute Force module from the main menu to populate results here.</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
 
         <!-- IP Analyses -->
         {% if data.ip_analyses %}
