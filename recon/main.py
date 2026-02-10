@@ -101,11 +101,10 @@ def post_recon_interactive():
     section_header("POST-RECON ACTIONS")
     console.print("  [bold cyan]1[/bold cyan]  -->  Launch [bold]HostRecon[/bold] Web Dashboard")
     console.print("  [bold cyan]2[/bold cyan]  -->  Start [bold]Brute Force[/bold] Attack Module")
-    console.print("  [bold cyan]3[/bold cyan]  -->  Do Both (HostRecon + Brute Force)")
-    console.print("  [bold cyan]4[/bold cyan]  -->  Exit")
+    console.print("  [bold cyan]3[/bold cyan]  -->  Exit")
     console.print()
 
-    choice = Prompt.ask("  [bold white]Select action[/bold white]", choices=["1", "2", "3", "4"], default="1")
+    choice = Prompt.ask("  [bold white]Select action[/bold white]", choices=["1", "2", "3"], default="1")
 
     if choice == '1':
         _launch_hostrecon()
@@ -113,20 +112,6 @@ def post_recon_interactive():
 
     elif choice == '2':
         _launch_brute()
-        post_recon_interactive()
-
-    elif choice == '3':
-        # Launch HostRecon in background, then run Brute Force
-        info_msg("Starting HostRecon in background...")
-        hostrecon_proc = subprocess.Popen(
-            [sys.executable, "hostrecon.py"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
-        success_msg("HostRecon running at http://localhost:5000 (background)")
-        _launch_brute()
-        info_msg("Stopping background HostRecon server...")
-        hostrecon_proc.terminate()
-        success_msg("HostRecon stopped.")
         post_recon_interactive()
 
     else:
