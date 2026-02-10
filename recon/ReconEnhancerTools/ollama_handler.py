@@ -90,49 +90,58 @@ def ask_ollama(prompt, model=None, system_prompt=None, max_tokens=2048):
 
     # Progress indicator — prints elapsed time while waiting
     _stop_progress = threading.Event()
-    def _progress_printer():
-        start = _time.time()
-        phases = [
-            "Loading model into memory",
-            "Processing prompt tokens",
-            "Generating response",
-            "Finalizing output",
-        ]
-        while not _stop_progress.is_set():
-            elapsed = int(_time.time() - start)
-            phase_idx = min(elapsed // 30, len(phases) - 1)
-            console.print(f"  [dim]> Ollama: {phases[phase_idx]}... ({elapsed}s elapsed)[/dim]", end="\r")
-            _stop_progress.wait(10)
+    _result_holder = [None, None]  # [response, error]
 
-    progress_thread = threading.Thread(target=_progress_printer, daemon=True)
-    progress_thread.start()
+    def _do_request():
+        try:
+            resp = requests.post(
+                f"{OLLAMA_BASE}/api/generate",
+                json=payload,
+                timeout=300
+            )
+            _result_holder[0] = resp
+        except Exception as ex:
+            _result_holder[1] = ex
+        finally:
+            _stop_progress.set()
 
-    try:
-        resp = requests.post(
-            f"{OLLAMA_BASE}/api/generate",
-            json=payload,
-            timeout=300
-        )
-        _stop_progress.set()
-        progress_thread.join(timeout=2)
-        console.print()  # Clear the progress line
+    # Run request in background thread
+    req_thread = threading.Thread(target=_do_request, daemon=True)
+    req_thread.start()
 
-        if resp.status_code == 200:
-            data = resp.json()
-            return data.get('response', '')
+    # Show progress while waiting
+    phases = [
+        "Loading model into memory",
+        "Processing prompt tokens",
+        "Generating response",
+        "Finalizing output",
+    ]
+    start = _time.time()
+    while not _stop_progress.is_set():
+        elapsed = int(_time.time() - start)
+        phase_idx = min(elapsed // 30, len(phases) - 1)
+        info_msg(f"Ollama: {phases[phase_idx]}... ({elapsed}s elapsed)")
+        _stop_progress.wait(15)
+
+    req_thread.join(timeout=5)
+
+    # Process results
+    resp = _result_holder[0]
+    err = _result_holder[1]
+
+    if err:
+        if isinstance(err, requests.exceptions.Timeout):
+            error_msg("Ollama request timed out (300s)")
         else:
-            error_msg(f"Ollama returned status {resp.status_code}")
-            return None
-    except requests.exceptions.Timeout:
-        _stop_progress.set()
-        progress_thread.join(timeout=2)
-        error_msg("Ollama request timed out (300s)")
+            error_msg(f"Ollama error: {err}")
         return None
-    except Exception as e:
-        _stop_progress.set()
-        progress_thread.join(timeout=2)
-        error_msg(f"Ollama error: {e}")
-        return None
+
+    if resp and resp.status_code == 200:
+        data = resp.json()
+        return data.get('response', '')
+    elif resp:
+        error_msg(f"Ollama returned status {resp.status_code}")
+    return None
 
 
 def analyze_findings_with_ollama(findings_json, model=None):

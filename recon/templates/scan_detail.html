@@ -370,7 +370,8 @@
                                 <td><code>{{ info.ip|default('N/A') }}</code></td>
                                 <td>{{ [geo.city, geo.region, geo.country]|select|join(', ') or '—' }}</td>
                                 <td><span class="badge bg-info">{{ ip_data.open_ports_count|default(0) }}</span></td>
-                                <td>{{ ip_data.services_found|default([])|join(', ') or '—' }}</td>
+                                <td>{{ ip_data.services_found|default([])|reject('equalto','no_open_ports')|join(', ')
+                                    or '—' }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

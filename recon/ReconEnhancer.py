@@ -127,7 +127,7 @@ class ReconEnhancer:
         return {}
 
     def extract_all_targets(self):
-        """Extract all targets from Nmap data."""
+        """Extract all targets from Nmap data AND subdomains."""
         targets = []
         
         if not self.nmap_data:
@@ -173,7 +173,10 @@ class ReconEnhancer:
                         })
                     
                     # Other interesting services
-                    elif service in ['ssh', 'ftp', 'mysql', 'postgresql', 'redis', 'telnet', 'smtp', 'dns', 'snmp']:
+                    elif service in ['ssh', 'ftp', 'mysql', 'postgresql', 'redis', 'telnet',
+                                     'smtp', 'smtps', 'dns', 'snmp', 'pop3', 'pop3s',
+                                     'imap', 'imaps', 'rdp', 'ms-wbt-server',
+                                     'domain', 'tcpwrapped']:
                         targets.append({
                             'type': 'service',
                             'ip': ip,
@@ -194,12 +197,55 @@ class ReconEnhancer:
                             'raw_service': port_info.get('service', 'unknown')
                         })
 
+        # ── Add subdomains as web targets ──────────────────────────
+        # This ensures web scanning even if Nmap didn't find HTTP ports.
+        # Subdomains like erp.domain.com, www.domain.com are likely web servers.
+        subdomain_urls_added = set()
+
+        # Always add the main domain
+        if self.domain:
+            for proto in ['http', 'https']:
+                url = f"{proto}://{self.domain}"
+                if url not in subdomain_urls_added:
+                    subdomain_urls_added.add(url)
+                    targets.append({
+                        'type': 'web',
+                        'ip': self.domain,
+                        'port': '443' if proto == 'https' else '80',
+                        'url': url,
+                        'service': proto,
+                        'version': '',
+                        'raw_service': proto
+                    })
+
+        # Add all subdomains as web targets
+        for sub in self.subdomains:
+            sub = sub.strip()
+            if not sub or sub.startswith('_') or sub == self.domain:
+                continue  # Skip SRV records like _caldavs._tcp.domain
+            for proto in ['http', 'https']:
+                url = f"{proto}://{sub}"
+                if url not in subdomain_urls_added:
+                    subdomain_urls_added.add(url)
+                    targets.append({
+                        'type': 'web',
+                        'ip': sub,
+                        'port': '443' if proto == 'https' else '80',
+                        'url': url,
+                        'service': proto,
+                        'version': '',
+                        'raw_service': proto
+                    })
+
+        if subdomain_urls_added:
+            info_msg(f"Added {len(subdomain_urls_added)} web targets from domain + subdomains")
+
         # Remove duplicates
         unique_targets = []
         seen = set()
         
         for target in targets:
-            key = (target['ip'], target['port'], target.get('url', ''))
+            key = (target.get('url', ''), target['ip'], target['port'])
             if key not in seen:
                 seen.add(key)
                 unique_targets.append(target)

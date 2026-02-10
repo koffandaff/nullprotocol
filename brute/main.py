@@ -18,7 +18,10 @@ from rich.prompt import Prompt, Confirm
 
 from attack_chain import (
     hydra_ssh, hydra_ftp, hydra_http_form,
-    sqlmap_url, sqlmap_form, nmap_vulnscan
+    hydra_smtp, hydra_mysql, hydra_rdp,
+    hydra_telnet, hydra_pop3, hydra_imap,
+    sqlmap_url, sqlmap_form, nmap_vulnscan,
+    nikto_scan, dirb_scan
 )
 
 
@@ -105,6 +108,78 @@ def identify_attack_opportunities(data):
                 'func': hydra_ftp
             })
 
+        elif service in ['smtp', 'smtps'] or port in ['25', '465', '587']:
+            opportunities.append({
+                'type': 'smtp_brute',
+                'tool': 'Hydra',
+                'ip': ip,
+                'port': port or '25',
+                'service': 'SMTP',
+                'description': f'SMTP Brute Force on {ip}:{port or 25}',
+                'severity': 'high',
+                'func': hydra_smtp
+            })
+
+        elif service == 'mysql' or port == '3306':
+            opportunities.append({
+                'type': 'mysql_brute',
+                'tool': 'Hydra',
+                'ip': ip,
+                'port': port or '3306',
+                'service': 'MySQL',
+                'description': f'MySQL Brute Force on {ip}:{port or 3306}',
+                'severity': 'critical',
+                'func': hydra_mysql
+            })
+
+        elif service in ['ms-wbt-server', 'rdp'] or port == '3389':
+            opportunities.append({
+                'type': 'rdp_brute',
+                'tool': 'Hydra',
+                'ip': ip,
+                'port': port or '3389',
+                'service': 'RDP',
+                'description': f'RDP Brute Force on {ip}:{port or 3389}',
+                'severity': 'high',
+                'func': hydra_rdp
+            })
+
+        elif service == 'telnet' or port == '23':
+            opportunities.append({
+                'type': 'telnet_brute',
+                'tool': 'Hydra',
+                'ip': ip,
+                'port': port or '23',
+                'service': 'Telnet',
+                'description': f'Telnet Brute Force on {ip}:{port or 23}',
+                'severity': 'high',
+                'func': hydra_telnet
+            })
+
+        elif service in ['pop3', 'pop3s'] or port in ['110', '995']:
+            opportunities.append({
+                'type': 'pop3_brute',
+                'tool': 'Hydra',
+                'ip': ip,
+                'port': port or '110',
+                'service': 'POP3',
+                'description': f'POP3 Brute Force on {ip}:{port or 110}',
+                'severity': 'medium',
+                'func': hydra_pop3
+            })
+
+        elif service in ['imap', 'imaps'] or port in ['143', '993']:
+            opportunities.append({
+                'type': 'imap_brute',
+                'tool': 'Hydra',
+                'ip': ip,
+                'port': port or '143',
+                'service': 'IMAP',
+                'description': f'IMAP Brute Force on {ip}:{port or 143}',
+                'severity': 'medium',
+                'func': hydra_imap
+            })
+
     # HTTP login forms from web targets
     for wt in data.get('web_targets', []):
         target = wt.get('target', {})
@@ -157,6 +232,35 @@ def identify_attack_opportunities(data):
                             'severity': 'critical',
                             'func': sqlmap_form
                         })
+
+    # Web scanning — Nikto + Directory brute force on web targets
+    seen_web_hosts = set()
+    for wt in data.get('web_targets', []):
+        target = wt.get('target', {})
+        url = target.get('url', '')
+        ip = target.get('ip', '')
+
+        host_key = f"{ip}:{target.get('port', '')}"
+        if host_key not in seen_web_hosts:
+            seen_web_hosts.add(host_key)
+            opportunities.append({
+                'type': 'nikto',
+                'tool': 'Nikto',
+                'url': url,
+                'service': 'Web Vuln Scanner',
+                'description': f'Nikto scan on {url}',
+                'severity': 'medium',
+                'func': nikto_scan
+            })
+            opportunities.append({
+                'type': 'dirb',
+                'tool': 'Dirb/Gobuster',
+                'url': url,
+                'service': 'Dir Brute Force',
+                'description': f'Directory brute force on {url}',
+                'severity': 'low',
+                'func': dirb_scan
+            })
 
     # Nmap vuln scan for interesting services
     seen_ips = set()
@@ -282,10 +386,12 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     results = []
-    for idx in selected:
+    total = len(selected)
+    for count, idx in enumerate(selected, 1):
         opp = opportunities[idx]
         console.print()
-        status_msg(f"[{idx+1}] {opp['description']}")
+        section_header(f"Attack [{count}/{total}]: {opp['tool']} -- {opp['service']}")
+        status_msg(f"{opp['description']}")
 
         try:
             result = opp['func'](opp, output_dir)
@@ -296,6 +402,9 @@ def main():
             else:
                 warning_msg(f"Attack returned: {result.get('message', 'No results')}")
 
+            if result.get('output_file'):
+                info_msg(f"Output saved: {result['output_file']}")
+
         except Exception as e:
             error_msg(f"Attack failed: {e}")
             results.append({'opportunity': opp['description'], 'error': str(e)})
@@ -305,7 +414,30 @@ def main():
     with open(results_file, 'w') as f:
         json.dump(results, f, indent=2, default=str)
 
-    success_msg(f"Brute force results saved to: {results_file}")
+    # Summary table
+    console.print()
+    section_header("ATTACK RESULTS SUMMARY")
+    summary_rows = []
+    for r in results:
+        desc = r['opportunity'][:55]
+        if 'error' in r:
+            status = "[red]FAILED[/red]"
+            detail = r['error'][:30]
+        elif r.get('result', {}).get('success'):
+            status = "[green]SUCCESS[/green]"
+            detail = r['result'].get('message', '')[:30]
+        else:
+            status = "[yellow]NO FINDINGS[/yellow]"
+            detail = r.get('result', {}).get('message', '')[:30]
+        summary_rows.append((desc, status, detail))
+
+    make_table(
+        "Results",
+        [("Attack", "white"), ("Status", ""), ("Detail", "dim")],
+        summary_rows
+    )
+
+    success_msg(f"All results saved to: {results_file}")
 
 
 if __name__ == '__main__':
