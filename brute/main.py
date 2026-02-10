@@ -193,6 +193,8 @@ def main():
     _script_results = os.path.join(os.path.dirname(__file__), 'results')
     _parent_results = os.path.join(os.path.dirname(__file__), '..', 'results')
 
+
+
     if os.path.isdir(_cwd_results):
         results_dir = _cwd_results
     elif os.path.isdir(_script_results):

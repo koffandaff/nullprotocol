@@ -88,7 +88,7 @@ def ask_ollama(prompt, model=None, system_prompt=None, max_tokens=2048):
         resp = requests.post(
             f"{OLLAMA_BASE}/api/generate",
             json=payload,
-            timeout=120
+            timeout=300
         )
         if resp.status_code == 200:
             data = resp.json()
@@ -97,7 +97,7 @@ def ask_ollama(prompt, model=None, system_prompt=None, max_tokens=2048):
             error_msg(f"Ollama returned status {resp.status_code}")
             return None
     except requests.exceptions.Timeout:
-        error_msg("Ollama request timed out (120s)")
+        error_msg("Ollama request timed out (300s)")
         return None
     except Exception as e:
         error_msg(f"Ollama error: {e}")

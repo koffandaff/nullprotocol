@@ -99,12 +99,13 @@ def post_recon_interactive():
     """Prompt the user for next steps after reconnaissance finishes."""
     console.print()
     section_header("POST-RECON ACTIONS")
-    console.print("  [bold cyan]1[/bold cyan]  -->  Launch [bold]HostRecon[/bold] Web Dashboard")
+    console.print("  [bold cyan]1[/bold cyan]  -->  Launch [bold]HostRecon[/bold] Web Dashboard (Current Scan)")
     console.print("  [bold cyan]2[/bold cyan]  -->  Start [bold]Brute Force[/bold] Attack Module")
-    console.print("  [bold cyan]3[/bold cyan]  -->  Exit")
+    console.print("  [bold cyan]3[/bold cyan]  -->  View Previous Scans (HostRecon)")
+    console.print("  [bold cyan]4[/bold cyan]  -->  Exit")
     console.print()
 
-    choice = Prompt.ask("  [bold white]Select action[/bold white]", choices=["1", "2", "3"], default="1")
+    choice = Prompt.ask("  [bold white]Select action[/bold white]", choices=["1", "2", "3", "4"], default="1")
 
     if choice == '1':
         _launch_hostrecon()
@@ -112,6 +113,10 @@ def post_recon_interactive():
 
     elif choice == '2':
         _launch_brute()
+        post_recon_interactive()
+
+    elif choice == '3':
+        _launch_hostrecon()
         post_recon_interactive()
 
     else:
