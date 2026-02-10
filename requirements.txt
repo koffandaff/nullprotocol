@@ -1,4 +1,23 @@
+# NullProtocol v2.0 — Python Dependencies
+# Install with: pip3 install -r requirements.txt
+
+# Core
 requests>=2.31.0
 xmltodict>=0.13.0
 python-magic>=0.4.27
+
+# Beautiful CLI output
 rich>=13.7.0
+
+# Web Reporting (HostRecon)
+flask>=3.0.0
+jinja2>=3.1.0
+
+# Crawler
+beautifulsoup4>=4.12.0
+
+# Ollama LLM Integration
+ollama>=0.1.0
+
+# PDF Export (optional, fallback to browser print)
+# weasyprint>=60.0

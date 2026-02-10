@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HostRecon — {{ data.domain }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/static/style.css" rel="stylesheet">
+</head>
+
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg border-bottom border-secondary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-shield-lock-fill text-cyan me-2"></i>
+                <span class="fw-bold">HostRecon</span>
+            </a>
+            <div class="mx-auto text-muted small d-none d-md-block">
+                Developed by <span class="text-light">Dhruvil</span> | <a href="https://github.com/koffandaff"
+                    class="text-muted text-decoration-none">github.com/koffandaff</a>
+            </div>
+            <div class="ms-auto d-flex gap-2">
+                <a href="/export/pdf/{{ domain_dir }}" class="btn btn-outline-danger btn-sm">
+                    <i class="bi bi-filetype-pdf me-1"></i>Export PDF
+                </a>
+                <a href="/raw/{{ domain_dir }}" class="btn btn-outline-secondary btn-sm" target="_blank">
+                    <i class="bi bi-file-text me-1"></i>Raw Report
+                </a>
+                <a href="/api/scan/{{ domain_dir }}" class="btn btn-outline-info btn-sm" target="_blank">
+                    <i class="bi bi-braces me-1"></i>JSON
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col">
+                <h2 class="mb-1">
+                    <i class="bi bi-crosshair text-danger me-2"></i>{{ data.domain }}
+                </h2>
+                <p class="text-muted mb-0">
+                    <i class="bi bi-clock me-1"></i>{{ data.timestamp[:19] if data.timestamp else 'N/A' }}
+                </p>
+            </div>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-3 col-6">
+                <div class="card text-center stat-card">
+                    <div class="card-body py-3">
+                        <div class="display-6 fw-bold text-info">{{ data.web_targets_count|default(0) }}</div>
+                        <small class="text-muted">Web Targets</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="card text-center stat-card">
+                    <div class="card-body py-3">
+                        <div class="display-6 fw-bold text-warning">{{ data.service_targets_count|default(0) }}</div>
+                        <small class="text-muted">Service Targets</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="card text-center stat-card">
+                    <div class="card-body py-3">
+                        <div class="display-6 fw-bold text-success">{{ data.ips_count|default(0) }}</div>
+                        <small class="text-muted">IPs Analyzed</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="card text-center stat-card">
+                    <div class="card-body py-3">
+                        <div class="display-6 fw-bold text-danger">{{ exploit_count }}</div>
+                        <small class="text-muted">Exploits Found</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vulnerability Severity Breakdown -->
+        {% if vuln_stats.critical > 0 or vuln_stats.high > 0 or vuln_stats.medium > 0 or vuln_stats.low > 0 %}
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Vulnerabilities by
+                Severity</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3 col-6">
+                        <div class="severity-box severity-critical">
+                            <span class="fw-bold display-6">{{ vuln_stats.critical }}</span>
+                            <span class="ms-2">Critical</span>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="severity-box severity-high">
+                            <span class="fw-bold display-6">{{ vuln_stats.high }}</span>
+                            <span class="ms-2">High</span>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="severity-box severity-medium">
+                            <span class="fw-bold display-6">{{ vuln_stats.medium }}</span>
+                            <span class="ms-2">Medium</span>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="severity-box severity-low">
+                            <span class="fw-bold display-6">{{ vuln_stats.low }}</span>
+                            <span class="ms-2">Low</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Web Targets -->
+        {% if data.web_targets %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-globe text-cyan me-2"></i>Web Targets
+                <span class="badge bg-info ms-2">{{ data.web_targets|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="accordion" id="webTargets">
+                    {% for wt in data.web_targets %}
+                    <div class="accordion-item bg-transparent border-secondary">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed bg-transparent text-light" type="button"
+                                data-bs-toggle="collapse" data-bs-target="#web-{{ loop.index }}">
+                                <i class="bi bi-link-45deg me-2 text-cyan"></i>
+                                {{ wt.target.url }}
+                                <span class="badge bg-secondary ms-2">{{ wt.target.service }}</span>
+                                {% if wt.vulnerabilities %}
+                                <span class="badge bg-danger ms-1">{{ wt.vulnerabilities|length }} vulns</span>
+                                {% endif %}
+                            </button>
+                        </h2>
+                        <div id="web-{{ loop.index }}" class="accordion-collapse collapse" data-bs-parent="#webTargets">
+                            <div class="accordion-body">
+                                <!-- Technologies -->
+                                {% if wt.technologies and wt.technologies.technologies %}
+                                <h6 class="text-cyan"><i class="bi bi-cpu me-1"></i>Technologies</h6>
+                                <div class="mb-3">
+                                    {% for tech in wt.technologies.technologies[:10] %}
+                                    <span class="badge bg-dark border border-secondary me-1 mb-1">{{ tech }}</span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+
+                                <!-- Directories -->
+                                {% if wt.directories %}
+                                <h6 class="text-cyan"><i class="bi bi-folder me-1"></i>Directories ({{
+                                    wt.directories|length }})</h6>
+                                <div class="table-responsive mb-3">
+                                    <table class="table table-sm table-dark table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Path</th>
+                                                <th>Status</th>
+                                                <th>Type</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for d in wt.directories[:15] %}
+                                            <tr>
+                                                <td><code>{{ d.path }}</code></td>
+                                                <td>{{ d.status }}</td>
+                                                <td><span class="badge bg-secondary">{{ d.classification }}</span></td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% endif %}
+
+                                <!-- API Endpoints -->
+                                {% if wt.api_endpoints %}
+                                <h6 class="text-cyan"><i class="bi bi-braces me-1"></i>API Endpoints ({{
+                                    wt.api_endpoints|length }})</h6>
+                                <div class="table-responsive mb-3">
+                                    <table class="table table-sm table-dark table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Endpoint</th>
+                                                <th>Status</th>
+                                                <th>Info</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for ep in wt.api_endpoints[:15] %}
+                                            <tr>
+                                                <td><code>{{ ep.endpoint }}</code></td>
+                                                <td><span
+                                                        class="badge {% if ep.status < 300 %}bg-success{% elif ep.status < 400 %}bg-warning{% else %}bg-danger{% endif %}">{{
+                                                        ep.status }}</span></td>
+                                                <td>{{ ep.info }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% endif %}
+
+                                <!-- Vulnerabilities -->
+                                {% if wt.vulnerabilities %}
+                                <h6 class="text-danger"><i class="bi bi-bug me-1"></i>Vulnerabilities</h6>
+                                <div class="mb-3">
+                                    {% for v in wt.vulnerabilities[:10] %}
+                                    <div
+                                        class="alert alert-{{ 'danger' if v.severity in ['critical','high'] else 'warning' if v.severity == 'medium' else 'info' }} py-2 mb-2">
+                                        <strong>[{{ v.severity|upper }}]</strong> {{ v.description }}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+
+                                <!-- Exploits -->
+                                {% if wt.exploits %}
+                                <h6 class="text-warning"><i class="bi bi-lightning me-1"></i>Exploits</h6>
+                                {% for e in wt.exploits[:5] %}
+                                <div class="exploit-item mb-2 p-2 rounded">
+                                    <div class="fw-bold">{{ e.title }}</div>
+                                    <small class="text-muted">
+                                        Vector: {{ e.attack_vector }} |
+                                        Severity: <span
+                                            class="text-{{ 'danger' if e.severity in ['critical','high'] else 'warning' }}">{{
+                                            e.severity|upper }}</span>
+                                        {% if e.cve %} | CVE: {{ e.cve }}{% endif %}
+                                    </small>
+                                </div>
+                                {% endfor %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Service Targets -->
+        {% if data.service_targets %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-hdd-network text-warning me-2"></i>Service Targets
+                <span class="badge bg-warning ms-2">{{ data.service_targets|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>IP</th>
+                                <th>Port</th>
+                                <th>Service</th>
+                                <th>Version</th>
+                                <th>Exploits</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for st in data.service_targets %}
+                            <tr>
+                                <td><code>{{ st.target.ip }}</code></td>
+                                <td>{{ st.target.port }}</td>
+                                <td><span class="badge bg-secondary">{{ st.target.service }}</span></td>
+                                <td>{{ st.target.version or '—' }}</td>
+                                <td>
+                                    {% if st.exploits %}
+                                    <span class="badge bg-danger">{{ st.exploits|length }}</span>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- SQLi Targets (from Crawler) -->
+        {% if sqli_count > 0 %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-database-fill-exclamation text-danger me-2"></i>SQL Injection Targets
+                <span class="badge bg-danger ms-2">{{ sqli_count }}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>URL</th>
+                                <th>Type</th>
+                                <th>Params</th>
+                                <th>Score</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for url, cdata in data.crawler.items() if data.crawler is mapping %}
+                            {% for sqli in cdata.potential_sqli|default([]) %}
+                            <tr>
+                                <td><code class="text-break">{{ sqli.url }}</code></td>
+                                <td><span class="badge bg-{{ 'danger' if sqli.type == 'form' else 'warning' }}">{{
+                                        sqli.type }}</span></td>
+                                <td>{{ ', '.join(sqli.params|default(sqli.fields|default([]))) }}</td>
+                                <td><span class="badge bg-danger">{{ sqli.sqli_score }}</span></td>
+                            </tr>
+                            {% endfor %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- IP Analyses -->
+        {% if data.ip_analyses %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-pc-display text-success me-2"></i>IP Analysis
+                <span class="badge bg-success ms-2">{{ data.ip_analyses|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>IP</th>
+                                <th>Location</th>
+                                <th>Open Ports</th>
+                                <th>Services</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ip_data in data.ip_analyses %}
+                            {% set info = ip_data.ip_info|default({}) %}
+                            {% set geo = info.geolocation|default({}) %}
+                            <tr>
+                                <td><code>{{ info.ip|default('N/A') }}</code></td>
+                                <td>{{ [geo.city, geo.region, geo.country]|select|join(', ') or '—' }}</td>
+                                <td><span class="badge bg-info">{{ ip_data.open_ports_count|default(0) }}</span></td>
+                                <td>{{ ip_data.services_found|default([])|join(', ') or '—' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Ollama AI Analysis -->
+        {% if data.ollama_analysis %}
+        <div class="card mb-4 border-purple">
+            <div class="card-header bg-purple-subtle">
+                <i class="bi bi-robot text-purple me-2"></i>AI-Powered Analysis (Ollama)
+            </div>
+            <div class="card-body">
+                <pre class="mb-0 text-light"
+                    style="white-space:pre-wrap;font-size:0.9rem;">{{ data.ollama_analysis }}</pre>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

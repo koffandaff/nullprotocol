@@ -1,0 +1,145 @@
+/* ── HostRecon Dark Theme ─────────────────────────────── */
+
+:root {
+    --cyan: #00bcd4;
+    --cyan-dim: #006064;
+    --purple: #9c27b0;
+    --bg-dark: #0d1117;
+    --bg-card: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-muted: #8b949e;
+}
+
+body {
+    background-color: var(--bg-dark);
+    color: var(--text);
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+}
+
+/* ── Navbar ────────────────── */
+.navbar {
+    background-color: var(--bg-card) !important;
+}
+
+.navbar-brand {
+    font-size: 1.25rem;
+}
+
+/* ── Utility Colors ────────── */
+.text-cyan { color: var(--cyan) !important; }
+.text-purple { color: var(--purple) !important; }
+.bg-purple { background-color: var(--purple) !important; }
+.bg-purple-subtle { background-color: rgba(156, 39, 176, 0.15) !important; }
+.border-purple { border-color: var(--purple) !important; }
+
+.btn-outline-cyan {
+    color: var(--cyan);
+    border-color: var(--cyan);
+}
+.btn-outline-cyan:hover {
+    background-color: var(--cyan);
+    color: #000;
+}
+
+/* ── Cards ─────────────────── */
+.card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.card-header {
+    background-color: rgba(255,255,255,0.03);
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 0.95rem;
+    padding: 12px 16px;
+}
+
+.card-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,188,212,0.15);
+    border-color: var(--cyan);
+}
+
+/* ── Stats ─────────────────── */
+.stat-box {
+    padding: 8px 4px;
+}
+.stat-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    line-height: 1;
+}
+.stat-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+}
+
+.stat-card {
+    border-radius: 10px;
+}
+
+/* ── Severity ──────────────── */
+.severity-box {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-radius: 8px;
+}
+.severity-critical { background: rgba(220,53,69,0.15); border-left: 4px solid #dc3545; }
+.severity-high { background: rgba(255,152,0,0.15); border-left: 4px solid #ff9800; }
+.severity-medium { background: rgba(255,193,7,0.15); border-left: 4px solid #ffc107; }
+.severity-low { background: rgba(13,110,253,0.15); border-left: 4px solid #0d6efd; }
+
+/* ── Exploit Items ─────────── */
+.exploit-item {
+    background: rgba(255,255,255,0.03);
+    border-left: 3px solid var(--cyan);
+}
+
+/* ── Accordion ─────────────── */
+.accordion-button {
+    font-size: 0.9rem;
+}
+.accordion-button:not(.collapsed) {
+    background-color: rgba(0,188,212,0.08) !important;
+    color: var(--cyan) !important;
+}
+.accordion-button::after {
+    filter: invert(1);
+}
+.accordion-item {
+    border-color: var(--border) !important;
+}
+
+/* ── Tables ────────────────── */
+.table-dark {
+    --bs-table-bg: transparent;
+    --bs-table-striped-bg: rgba(255,255,255,0.02);
+}
+.table-dark thead th {
+    background-color: rgba(0,188,212,0.1);
+    color: var(--cyan);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+}
+
+/* ── Scrollbar ─────────────── */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-dark); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Alert Overrides ───────── */
+.alert { border-radius: 6px; font-size: 0.85rem; }

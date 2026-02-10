@@ -1,45 +1,154 @@
 import os
 import json
-from utility import Validate_Ip, FileGenarator, Create_Domain_Directory
+import subprocess
 import IpNmapHandler
-import os
+from utility import (
+    Validate_Ip, FileGenarator, Create_Domain_Directory,
+    enrich_ip_info, console, section_header, status_msg,
+    error_msg, success_msg, warning_msg, info_msg, make_table,
+    get_progress_bar
+)
 
-def IpMasscan(Ip,domain):
-	ips = {}
-	for i in Ip:
-		Dir = Create_Domain_Directory(domain,'Ip')
-		
-		Name = FileGenarator(i)
-		File = os.path.join(Dir,Name)
-		print(File)
-	
-		
-		print(f"---------Scanning {i} ----------------")
-		os.system(f'sudo masscan --top-ports 1000 {i} --open --rate=25000 --wait 0 -oJ {File}.json')
-		print(f'---------------- Saved File: {i}.json------------------')
-		if(f'{File}.json'):
-			with open(f'{File}.json','r') as f:
-				data = f.read()
-				print(data)
-				ips[i] = data
-				#ips[file] = f'{File}.json'
-		#os.chdir(f'{Dir}')
-		#os.system(f"find -name '{Name}.json' -type f -empty -delete")
-		#os.chdir('~/projects/fsociety/recon')
-		os.system(f"find '{Dir}' -name '*.json' -type f -empty -delete 2>/dev/null")
-	print(ips)
-	return {'ip':ips,'dir': Dir}
 
-def IpHandler(Ip,domain, Subdomain_File):
+def IpMasscan(ip_list, domain):
+    """Run masscan on validated IPs with proper error handling."""
+    ips = {}
+    Dir = Create_Domain_Directory(domain, 'Ip')
+
+    section_header("MASSCAN — Fast Port Discovery", "🚀")
+
+    with get_progress_bar() as progress:
+        task = progress.add_task("Scanning IPs", total=len(ip_list))
+
+        for ip in ip_list:
+            Name = FileGenarator(ip)
+            File = os.path.join(Dir, Name)
+
+            try:
+                cmd = f'sudo masscan --top-ports 1000 {ip} --open --rate=25000 --wait 0 -oJ {File}.json'
+                result = subprocess.run(
+                    cmd, shell=True,
+                    capture_output=True, text=True,
+                    timeout=120
+                )
+
+                json_path = f'{File}.json'
+                if os.path.exists(json_path) and os.path.getsize(json_path) > 2:
+                    with open(json_path, 'r') as f:
+                        data = f.read()
+                        ips[ip] = data
+                    success_msg(f"{ip} — ports found")
+                else:
+                    warning_msg(f"{ip} — no open ports detected")
+                    # Clean up empty files
+                    if os.path.exists(json_path):
+                        os.remove(json_path)
+
+            except subprocess.TimeoutExpired:
+                error_msg(f"{ip} — masscan timed out")
+            except Exception as e:
+                error_msg(f"{ip} — masscan error: {e}")
+
+            progress.update(task, advance=1)
+
+    # Cleanup remaining empty JSON files
+    try:
+        subprocess.run(
+            f"find '{Dir}' -name '*.json' -type f -empty -delete 2>/dev/null",
+            shell=True, capture_output=True
+        )
+    except Exception:
+        pass
+
+    return {'ip': ips, 'dir': Dir}
+
+
+def IpHandler(Ip, domain=None, Subdomain_File=None):
+    """Orchestrate IP scanning pipeline with robust error handling.
+
+    Supports two modes:
+      1. Called from Domain flow: domain & Subdomain_File provided
+      2. Called directly with IPs: domain is derived from first IP
+    """
     import ReconEnhancer
-    
-    ip = Validate_Ip(Ip)
-    IpData = IpMasscan(ip,domain)
-    Nmap_Result = IpNmapHandler.main(IpData['ip'],IpData['dir'])
-    print(Nmap_Result['File_Location'])
-    with open(Subdomain_File, 'r') as f:
-        print(f.read())
 
-    print(IpData['ip'],"="*70,IpData['dir'])
-    ReconEnhancer.main(domain,Subdomain_File,Nmap_Result['File_Location'],IpData['ip'])
-    
+    # ── Derive domain name if not provided ──
+    if not domain:
+        domain = Ip[0] if Ip else "unknown_target"
+
+    section_header("IP PIPELINE", "🔗")
+
+    # ── Step 1: Validate IPs ──
+    status_msg("Validating IP addresses...")
+    valid_ips = Validate_Ip(Ip)
+
+    if not valid_ips:
+        error_msg("No valid IP addresses found. Aborting.")
+        return
+
+    success_msg(f"{len(valid_ips)} valid IPs out of {len(Ip)} provided")
+
+    # ── Step 2: Enrich IPs (reverse DNS + alive check) ──
+    status_msg("Enriching IPs (reverse DNS + ping)...")
+    enriched = enrich_ip_info(valid_ips)
+
+    # Display enrichment results in a table
+    rows = []
+    alive_ips = []
+    for info in enriched:
+        alive_str = "[green]✓ ALIVE[/green]" if info['alive'] else "[red]✗ DOWN[/red]"
+        rows.append((info['ip'], info['hostname'], alive_str))
+        if info['alive']:
+            alive_ips.append(info['ip'])
+
+    make_table(
+        "IP Enrichment Results",
+        [("IP Address", "cyan"), ("Hostname", "white"), ("Status", "")],
+        rows
+    )
+
+    # Use alive IPs if any, otherwise fall back to all valid IPs
+    scan_ips = alive_ips if alive_ips else valid_ips
+    if not alive_ips:
+        warning_msg("No hosts responded to ping — scanning all valid IPs anyway (may be filtered)")
+
+    # ── Step 3: Masscan ──
+    IpData = IpMasscan(scan_ips, domain)
+
+    if not IpData['ip']:
+        warning_msg("Masscan found no open ports. Proceeding with Nmap for deeper scan...")
+
+    # ── Step 4: Nmap ──
+    section_header("NMAP — Deep Service & OS Discovery", "🔬")
+    try:
+        Nmap_Result = IpNmapHandler.main(IpData['ip'], IpData['dir'])
+        success_msg(f"Nmap results saved to: {Nmap_Result['File_Location']}")
+    except Exception as e:
+        error_msg(f"Nmap handler failed: {e}")
+        # Create a minimal nmap result so ReconEnhancer can still run
+        nmap_dir = os.path.join(IpData['dir'], 'Nmap')
+        os.makedirs(nmap_dir, exist_ok=True)
+        fallback_json = os.path.join(nmap_dir, 'nmap_report.json')
+        with open(fallback_json, 'w') as f:
+            json.dump({'serviceDiscovery': {}, 'osDiscovery': {}, 'executionTimes': {}}, f)
+        Nmap_Result = {'File_Location': fallback_json}
+        warning_msg("Using fallback empty Nmap data")
+
+    # ── Step 5: ReconEnhancer ──
+    section_header("RECON ENHANCER — Deep Analysis", "🧠")
+
+    # If no subdomain file, create a temporary one
+    if not Subdomain_File:
+        temp_sub_file = os.path.join(IpData['dir'], 'subdomains_temp.txt')
+        with open(temp_sub_file, 'w') as f:
+            for info in enriched:
+                if info['hostname'] and info['hostname'] != 'N/A':
+                    f.write(info['hostname'] + '\n')
+        Subdomain_File = temp_sub_file
+        info_msg(f"Created temp subdomain file from reverse DNS: {temp_sub_file}")
+
+    try:
+        ReconEnhancer.main(domain, Subdomain_File, Nmap_Result['File_Location'], IpData['ip'])
+        success_msg("Recon Enhancement complete!")
+    except Exception as e:
+        error_msg(f"ReconEnhancer failed: {e}")

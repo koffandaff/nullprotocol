@@ -6,156 +6,146 @@ import re
 from urllib.parse import urlparse
 import concurrent.futures
 import time
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utility import console, status_msg, success_msg, error_msg, warning_msg, info_msg, get_progress_bar, make_table
+
 
 class WebScanner:
     def __init__(self, data_dir):
         self.data_dir = data_dir
         self.tool_dirs = {}
         self.setup_tool_dirs()
-        
-        # Common paths 
-        # REally unoptimized
-        self.common_paths = [
-            # API endpoints
-            '/api', '/api/v1', '/api/v2', '/api/v3', '/graphql', '/rest', '/soap',
-            '/json', '/xml', '/admin/api', '/wp-json', '/swagger', '/swagger-ui',
-            '/openapi', '/docs', '/redoc', '/v1', '/v2', '/v3',
-            
-            # Admin interfaces
-            '/admin', '/administrator', '/wp-admin', '/wp-login', '/login', '/signin',
-            '/dashboard', '/cp', '/controlpanel', '/manager', '/manage',
-            
-            # Configuration files
-            '/config', '/configuration', '/settings', '/setup', '/install',
-            '/update', '/upgrade', '/backup', '/backups', '/dump', '/sql',
-            
-            # Development files
-            '/test', '/testing', '/dev', '/development', '/staging', '/stage',
-            '/debug', '/console', '/shell', '/terminal',
-            
-            # Common directories
-            '/uploads', '/downloads', '/files', '/assets', '/static', '/media',
-            '/images', '/img', '/css', '/js', '/scripts', '/styles',
-            
-            # Authentication
-            '/auth', '/oauth', '/oauth2', '/sso', '/account', '/user', '/users',
-            '/profile', '/register', '/signup', '/logout',
-            
-            # Database/admin
-            '/phpmyadmin', '/adminer', '/db', '/database', '/mysql', '/pgsql',
-            '/mongodb', '/redis', '/memcache',
-            
-            # Monitoring/logs
-            '/status', '/health', '/ping', '/metrics', '/monitor', '/logs',
-            '/log', '/access.log', '/error.log',
-            
-            # Framework specific
-            '/laravel', '/symfony', '/django', '/flask', '/rails', '/spring',
-            '/wordpress', '/joomla', '/drupal', '/magento'
+
+        # Curated API paths — focused, no bloat
+        self.api_paths = [
+            '/api', '/api/v1', '/api/v2', '/api/v3', '/graphql', '/rest',
+            '/swagger', '/swagger-ui', '/swagger-ui.html', '/swagger.json',
+            '/openapi', '/openapi.json', '/docs', '/redoc', '/v1', '/v2',
+            '/wp-json', '/wp-json/wp/v2/posts',
         ]
-    # Folder setup
+
+        self.admin_paths = [
+            '/admin', '/administrator', '/wp-admin', '/wp-login.php',
+            '/login', '/signin', '/dashboard', '/cp', '/manager',
+        ]
+
+        self.sensitive_paths = [
+            '/robots.txt', '/sitemap.xml', '/.env', '/.git/config',
+            '/.git/HEAD', '/.svn/entries', '/config.php.bak',
+            '/backup.zip', '/dump.sql', '/phpinfo.php',
+            '/server-status', '/server-info',
+            '/.well-known/security.txt',
+        ]
+
+        self.framework_paths = [
+            '/actuator/health', '/actuator/info', '/actuator/env',
+            '/storage/logs/laravel.log', '/_profiler/phpinfo',
+            '/rails/info/routes', '/debug', '/console',
+        ]
+
     def setup_tool_dirs(self):
-        tools = ['gobuster', 'whatweb', 'nikto', 'api_checks', 'vuln_scans']
+        tools = ['gobuster', 'whatweb', 'api_checks', 'vuln_scans']
         for tool in tools:
             tool_dir = os.path.join(self.data_dir, tool)
             os.makedirs(tool_dir, exist_ok=True)
             self.tool_dirs[tool] = tool_dir
-    
-    def get_safe_filename(self, url):
-        safe = url.replace('://', '_').replace(':', '_').replace('/', '_') # clearning 
-        safe = re.sub(r'[^a-zA-Z0-9._-]', '', safe)
-        return safe[:100]  # Limit length
 
-    # Wordlists that comes with tools needs more work
+    def get_safe_filename(self, url):
+        safe = url.replace('://', '_').replace(':', '_').replace('/', '_')
+        safe = re.sub(r'[^a-zA-Z0-9._-]', '', safe)
+        return safe[:100]
+
+    # ─── WORDLIST DETECTION ──────────────────────────────────
     def check_wordlists(self):
         wordlists = {
             'common': '/usr/share/wordlists/dirb/common.txt',
             'small': '/usr/share/wordlists/dirb/small.txt',
-            'big': '/usr/share/wordlists/dirb/big.txt',
-            'medium': '/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt',
-            'apache': '/usr/share/wordlists/dirbuster/directory-list-lowercase-2.3-medium.txt',
-            'quick': '/usr/share/seclists/Discovery/Web-Content/quick.txt',
-            'common_dirs': '/usr/share/seclists/Discovery/Web-Content/common.txt'
+            'seclists': '/usr/share/seclists/Discovery/Web-Content/common.txt',
         }
-        
+
         available = {}
         for name, path in wordlists.items():
             if os.path.exists(path):
                 available[name] = path
-        
+
         if not available:
-            # Create minimal wordlist fall back if doesn't exsists
-            minimal = ['admin', 'api', 'login', 'test', 'backup', 'config', 'wp-admin']
+            minimal = [
+                'admin', 'api', 'login', 'test', 'backup', 'config',
+                'wp-admin', 'dashboard', 'uploads', 'images', 'css', 'js',
+                '.env', '.git', 'robots.txt', 'sitemap.xml'
+            ]
             minimal_path = '/tmp/minimal_wordlist.txt'
             with open(minimal_path, 'w') as f:
                 f.write('\n'.join(minimal))
             available['minimal'] = minimal_path
-        
+
         return available
 
-    # RUn OG gobuster
+    # ─── GOBUSTER ────────────────────────────────────────────
     def run_gobuster(self, url, timeout=90):
         wordlists = self.check_wordlists()
         if not wordlists:
             return []
-        
+
         safe_name = self.get_safe_filename(url)
-        output_files = []
         results = []
-        
-        # Try different wordlists
-        for wl_name, wl_path in wordlists.items():
-            if len(results) > 100:  # Stop if we have enough results
-                break
-            
-            output_file = os.path.join(self.tool_dirs['gobuster'], 
-                                      f"gobuster_{safe_name}_{wl_name}.txt")
-            output_files.append(output_file)
-            
-            cmd = f"gobuster dir -u {url} -w {wl_path} -t 20 -q -o {output_file}"
-            
-            try:
-                subprocess.run(
-                    cmd,
-                    shell=True,
-                    timeout=timeout/len(wordlists),  # Divide timeout among wordlists
-                    capture_output=True,
-                    text=True
-                )
-                
-                # Parse results
-                if os.path.exists(output_file):
-                    with open(output_file, 'r') as f:
-                        for line in f:
-                            if 'Status:' in line:
-                                parts = line.strip().split()
-                                if len(parts) >= 3:
-                                    path = parts[0]
-                                    status = parts[2]
-                                    
-                                    # Classify finding
-                                    classification = self.classify_path(path)
-                                    
-                                    results.append({
-                                        'path': path,
-                                        'status': status,
-                                        'classification': classification,
-                                        'wordlist': wl_name
-                                    })
-                
-            except (subprocess.TimeoutExpired, Exception):
-                continue
-        
-        return results[:200]  # Return top 200 results
-    
+
+        # Only use first available wordlist to save time
+        wl_name, wl_path = next(iter(wordlists.items()))
+
+        output_file = os.path.join(
+            self.tool_dirs['gobuster'],
+            f"gobuster_{safe_name}_{wl_name}.txt"
+        )
+
+        cmd = f"gobuster dir -u {url} -w {wl_path} -t 20 -q -o {output_file} --no-error"
+
+        try:
+            subprocess.run(
+                cmd, shell=True,
+                timeout=timeout,
+                capture_output=True, text=True
+            )
+
+            if os.path.exists(output_file):
+                with open(output_file, 'r') as f:
+                    for line in f:
+                        if 'Status:' in line:
+                            parts = line.strip().split()
+                            if len(parts) >= 3:
+                                path = parts[0]
+                                status = parts[2]
+                                # ── FILTER: skip 404, 403, 500 ──
+                                try:
+                                    status_code = int(status.strip('()'))
+                                    if status_code >= 400:
+                                        continue
+                                except ValueError:
+                                    continue
+
+                                classification = self.classify_path(path)
+                                results.append({
+                                    'path': path,
+                                    'status': status,
+                                    'classification': classification,
+                                    'wordlist': wl_name
+                                })
+
+        except (subprocess.TimeoutExpired, Exception):
+            pass
+
+        return results[:100]
+
     def classify_path(self, path):
         path_lower = path.lower()
-        
+
         if any(word in path_lower for word in ['admin', 'login', 'auth', 'dashboard', 'control']):
             return 'authentication'
         elif any(word in path_lower for word in ['api', 'rest', 'graphql', 'soap', 'json']):
             return 'api'
-        elif any(word in path_lower for word in ['backup', 'dump', 'sql', 'database', '.sql']):
+        elif any(word in path_lower for word in ['backup', 'dump', 'sql', 'database', '.sql', '.bak']):
             return 'data_exposure'
         elif any(word in path_lower for word in ['config', 'setup', 'install', 'update', '.env']):
             return 'configuration'
@@ -166,34 +156,31 @@ class WebScanner:
         else:
             return 'general'
 
-    # Whatweb
+    # ─── WHATWEB ─────────────────────────────────────────────
     def run_whatweb(self, url, timeout=30):
         safe_name = self.get_safe_filename(url)
-        output_file = os.path.join(self.tool_dirs['whatweb'], 
-                                  f"whatweb_{safe_name}.txt")
-        
+        output_file = os.path.join(
+            self.tool_dirs['whatweb'],
+            f"whatweb_{safe_name}.txt"
+        )
+
         cmd = f"whatweb {url} --color=never -a 3 --log-verbose={output_file}"
-        
+
         try:
             subprocess.run(
-                cmd,
-                shell=True,
+                cmd, shell=True,
                 timeout=timeout,
-                capture_output=True,
-                text=True
+                capture_output=True, text=True
             )
-            
-            # Parse results
             tech_data = self.parse_whatweb_output(output_file, url)
             return tech_data
-            
+
         except Exception as e:
-            print(f"[!] WhatWeb error: {e}")
-        
+            error_msg(f"WhatWeb error: {e}")
+
         return {'url': url, 'technologies': []}
-    
+
     def parse_whatweb_output(self, output_file, url):
-        """Parse whatweb output file."""
         tech_data = {
             'url': url,
             'technologies': [],
@@ -203,15 +190,14 @@ class WebScanner:
             'language': '',
             'details': {}
         }
-        
+
         if not os.path.exists(output_file):
             return tech_data
-        
+
         try:
             with open(output_file, 'r') as f:
                 content = f.read()
-            
-            # Parse technologies
+
             lines = content.split('\n')
             for line in lines:
                 if ']' in line and '[' in line:
@@ -221,270 +207,254 @@ class WebScanner:
                         for tech in techs:
                             if tech and tech not in tech_data['technologies']:
                                 tech_data['technologies'].append(tech)
-                                
-                                # Classify technology
+
                                 tech_lower = tech.lower()
-                                if any(word in tech_lower for word in ['nginx', 'apache', 'iis', 'lighttpd', 'server']):
+                                if any(w in tech_lower for w in ['nginx', 'apache', 'iis', 'lighttpd', 'server']):
                                     tech_data['server'] = tech
-                                elif any(word in tech_lower for word in ['wordpress', 'joomla', 'drupal', 'magento']):
+                                elif any(w in tech_lower for w in ['wordpress', 'joomla', 'drupal', 'magento']):
                                     tech_data['cms'] = tech
-                                elif any(word in tech_lower for word in ['laravel', 'django', 'flask', 'rails', 'spring']):
+                                elif any(w in tech_lower for w in ['laravel', 'django', 'flask', 'rails', 'spring', 'express']):
                                     tech_data['framework'] = tech
-                                elif any(word in tech_lower for word in ['php', 'python', 'ruby', 'java', 'node.js']):
+                                elif any(w in tech_lower for w in ['php', 'python', 'ruby', 'java', 'node.js']):
                                     tech_data['language'] = tech
-                
-                # Parse detailed information
+
                 if ':' in line and '[' not in line:
                     parts = line.split(':', 1)
                     if len(parts) == 2:
                         key = parts[0].strip()
                         value = parts[1].strip()
                         tech_data['details'][key] = value
-            
+
         except Exception as e:
-            print(f"[!] Error parsing WhatWeb output: {e}")
-        
+            error_msg(f"Error parsing WhatWeb output: {e}")
+
         return tech_data
-    # API ENDPOINTS
+
+    # ─── API ENDPOINT DISCOVERY (REFACTORED) ─────────────────
     def check_api_endpoints(self, url, timeout=3):
+        """Discover API endpoints with noise filtering.
+        Only returns endpoints with status < 400 and meaningful content.
+        """
         safe_name = self.get_safe_filename(url)
-        output_file = os.path.join(self.tool_dirs['api_checks'], 
-                                  f"api_{safe_name}.txt")
-        
+        output_file = os.path.join(
+            self.tool_dirs['api_checks'],
+            f"api_{safe_name}.txt"
+        )
+
+        all_paths = self.api_paths + self.admin_paths + self.framework_paths
         endpoints = []
-        checked_paths = set()
-        
-        # Check common paths in parallel
-        with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
+        checked = set()
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
             futures = []
-            for path in self.common_paths:
+            for path in all_paths:
                 full_url = url.rstrip('/') + path
-                if full_url not in checked_paths:
-                    checked_paths.add(full_url)
+                if full_url not in checked:
+                    checked.add(full_url)
                     futures.append(executor.submit(
-                        self.check_single_endpoint, 
-                        url, path, timeout
+                        self._check_endpoint, url, path, timeout
                     ))
-            
+
             for future in concurrent.futures.as_completed(futures):
                 try:
-                    result = future.result(timeout=timeout+1)
+                    result = future.result(timeout=timeout + 2)
                     if result:
                         endpoints.append(result)
-                except:
+                except Exception:
                     continue
-        
-        # Save results to file
+
+        # Sort by status code (2xx first) then by classification importance
+        priority = {'api': 0, 'authentication': 1, 'configuration': 2, 'data_exposure': 3, 'general': 9}
+        endpoints.sort(key=lambda x: (
+            0 if 200 <= x['status'] < 300 else 1,
+            priority.get(x.get('classification', 'general'), 9)
+        ))
+
+        # Save results
         with open(output_file, 'w') as f:
-            for endpoint in endpoints[:100]:  # Save top 100
-                f.write(f"{endpoint['status']} | {endpoint['endpoint']} | {endpoint['info']}\n")
-        
-        return endpoints[:100]
-    
-    def check_single_endpoint(self, base_url, path, timeout):
+            for ep in endpoints[:50]:
+                f.write(f"{ep['status']} | {ep['endpoint']} | {ep['info']}\n")
+
+        return endpoints[:50]
+
+    def _check_endpoint(self, base_url, path, timeout):
         full_url = base_url.rstrip('/') + path
-        
+
         try:
             response = requests.get(
-                full_url,
-                timeout=timeout,
-                verify=False,
+                full_url, timeout=timeout, verify=False,
                 allow_redirects=False,
-                headers={'User-Agent': 'Mozilla/5.0'}
+                headers={'User-Agent': 'Mozilla/5.0 (NullProtocol Scanner)'}
             )
-            
-            info = ""
+
+            # ── NOISE FILTER: Skip 404, 500+, and tiny error pages ──
+            if response.status_code >= 400:
+                return None
+
             content_type = response.headers.get('Content-Type', '').lower()
-            
-            # Analyze response
-            if response.status_code < 400:
-                if 'json' in content_type:
-                    info = "JSON API endpoint"
-                elif 'admin' in path.lower() or 'login' in path.lower():
-                    info = "Admin interface"
-                elif response.status_code in [301, 302]:
-                    info = f"Redirects to: {response.headers.get('Location', '')}"
-                elif len(response.text) > 10000:
-                    info = "Large response (possible data)"
-                else:
-                    info = "Accessible endpoint"
-            
+            content_length = len(response.text)
+
+            # Skip nearly empty responses (likely default error pages)
+            if content_length < 50 and response.status_code != 204:
+                return None
+
+            info = self._classify_response(path, response, content_type, content_length)
+            classification = self.classify_path(path)
+
             return {
                 'endpoint': path,
                 'url': full_url,
                 'status': response.status_code,
-                'length': len(response.text),
+                'length': content_length,
                 'content_type': content_type,
                 'info': info,
+                'classification': classification,
                 'redirect': response.headers.get('Location', '') if response.status_code in [301, 302] else ''
             }
-            
+
         except Exception:
             return None
-    # Vuln chcking through requests and common vulnrable directory
+
+    def _classify_response(self, path, response, content_type, content_length):
+        """Create a human-readable info string for discovered endpoints."""
+        if response.status_code in [301, 302]:
+            location = response.headers.get('Location', 'unknown')
+            return f"Redirects → {location}"
+
+        if 'json' in content_type:
+            try:
+                data = response.json()
+                if isinstance(data, dict):
+                    keys = list(data.keys())[:5]
+                    return f"JSON API ({', '.join(keys)})"
+                elif isinstance(data, list):
+                    return f"JSON Array ({len(data)} items)"
+            except Exception:
+                pass
+            return "JSON endpoint"
+
+        if 'html' in content_type:
+            text = response.text.lower()
+            if '<form' in text and ('login' in text or 'password' in text):
+                return "Login/Auth page"
+            elif '<form' in text:
+                return "Page with form"
+            elif 'admin' in path.lower():
+                return "Admin interface"
+            return f"HTML page ({content_length} bytes)"
+
+        if 'xml' in content_type:
+            return "XML data"
+
+        return f"Accessible ({content_length} bytes)"
+
+    # ─── VULNERABILITY SCAN ──────────────────────────────────
     def quick_vuln_scan(self, url, timeout=45):
         safe_name = self.get_safe_filename(url)
-        output_file = os.path.join(self.tool_dirs['vuln_scans'], 
-                                  f"vuln_{safe_name}.txt")
-        
+        output_file = os.path.join(
+            self.tool_dirs['vuln_scans'],
+            f"vuln_{safe_name}.txt"
+        )
+
         findings = []
-        
-        # Quick checks really unoptimized
+
+        # Categorized checks with severity rating
         checks = [
-           # --- 1. Version Control & Dev Exposure (CRITICAL) ---
-                ("Git Config", "/.git/config"),
-                ("Git Index", "/.git/index"),
-                ("Git Pack", "/.git/objects/pack/"),
-                ("SVN Config", "/.svn/all-wcprops"),
-                ("Mercurial repo", "/.hg/"),
-                ("Bazaar repo", "/.bzr/"),
-                ("Docker Compose", "/docker-compose.yml"),
-                ("Dockerfile", "/Dockerfile"),
-            
-                # --- 2. Configuration & Secrets (CRITICAL) ---
-                ("Environment Backup", "/.env.bak"),
-                ("Environment Example", "/.env.example"),
-                ("Environment Production", "/.env.production"),
-                ("Node Modules Log", "/npm-debug.log"),
-                ("Yarn Lock", "/yarn.lock"),
-                ("Web Config", "/web.config"),
-                ("PHP Config", "/php.ini"),
-                ("Apache Info", "/.htpasswd"),
-                ("Nginx Config", "/nginx.conf"),
-                ("Terraform State", "/terraform.tfstate"),
-            
-                # --- 3. Database & Backups (HIGH) ---
-                ("SQL Dump", "/dump.sql"),
-                ("DB Backup", "/db.sql.gz"),
-                ("Postgres Log", "/postgresql.log"),
-                ("Mongo Export", "/mongo.json"),
-                ("SQLite DB", "/database.sqlite"),
-                ("Config Backup", "/config.php.bak"),
-                ("Zip Backup", "/backup.zip"),
-                ("Tarball Backup", "/site.tar.gz"),
-                ("Old Files", "/old/"),
-            
-                # --- 4. Cloud & Infrastructure (HIGH) ---
-                ("AWS Credentials", "/.aws/credentials"),
-                ("AWS Config", "/.aws/config"),
-                ("S3 Config", "/.s3cfg"),
-                ("GCreds", "/.gcat/"),
-                ("Kube Config", "/.kube/config"),
-                ("Azure CLI", "/.azure/accessTokens.json"),
-            
-                # --- 5. Framework Specific (MEDIUM) ---
-                ("Laravel Log", "/storage/logs/laravel.log"),
-                ("Symfony Profiler", "/_profiler/phpinfo"),
-                ("Django Settings", "/settings.py"),
-                ("Rails Routes", "/rails/info/routes"),
-                ("Spring Boot Info", "/actuator/info"),
-                ("Spring Boot Health", "/actuator/health"),
-                ("Spring Boot Env", "/actuator/env"),
-                ("Spring Boot Heap", "/actuator/heapdump"),
-                ("WordPress Config", "/wp-config.php.txt"),
-                ("Drupal Services", "/sites/default/services.yml"),
-            
-                # --- 6. API & Documentation (MEDIUM) ---
-                ("Swagger UI", "/swagger-ui.html"),
-                ("Swagger JSON", "/swagger.json"),
-                ("OpenAPI Spec", "/openapi.json"),
-                ("GraphQL Playground", "/graphql"),
-                ("Apollo Sandbox", "/_sandbox"),
-                ("WSDL File", "/service.wsdl"),
-            
-                # --- 7. Security & Logs (LOW/INFO) ---
-                ("Security.txt", "/.well-known/security.txt"),
-                ("Robots.txt", "/robots.txt"),
-                ("Sitemap", "/sitemap.xml"),
-                ("Audit Log", "/audit.log"),
-                ("Error Log", "/error_log"),
-                ("MySQL History", "/.mysql_history"),
-                ("Bash History", "/.bash_history"),
-                ("SSH Public Key", "/.ssh/id_rsa.pub"),
-            
-                # --- 8. Java/JS/Misc (MEDIUM) ---
-                ("Web XML", "/WEB-INF/web.xml"),
-                ("Pom XML", "/pom.xml"),
-                ("Package.json", "/package.json"),
-                ("Bower.json", "/bower.json"),
-                ("Composer JSON", "/composer.json"),
-                ("Heap Dump", "/heapdump"),
-                ("Core Dump", "/core"),
-                ("Crossdomain XML", "/crossdomain.xml"),
-                ("Client Access XML", "/clientaccesspolicy.xml"),
-            
-                # --- 9. Common Installers/Tools ---
-                ("PHPMyAdmin", "/phpmyadmin/setup/index.php"),
-                ("Adminer", "/adminer.php"),
-                ("CPanel Log", "/.cpanel/logs"),
-                ("Magento Release", "/RELEASE_NOTES.txt"),
-                ("Joomla Config", "/configuration.php-dist")
+            # (Name, Path, Severity)
+            ("Git Config", "/.git/config", "critical"),
+            ("Git HEAD", "/.git/HEAD", "critical"),
+            ("Environment File", "/.env", "critical"),
+            ("Environment Backup", "/.env.bak", "critical"),
+            ("Docker Compose", "/docker-compose.yml", "high"),
+            ("Dockerfile", "/Dockerfile", "high"),
+            ("SQL Dump", "/dump.sql", "critical"),
+            ("DB Backup", "/db.sql.gz", "critical"),
+            ("SQLite DB", "/database.sqlite", "critical"),
+            ("Config Backup", "/config.php.bak", "high"),
+            ("Zip Backup", "/backup.zip", "high"),
+            ("AWS Credentials", "/.aws/credentials", "critical"),
+            ("Kube Config", "/.kube/config", "critical"),
+            ("Laravel Log", "/storage/logs/laravel.log", "high"),
+            ("Spring Actuator Env", "/actuator/env", "high"),
+            ("Spring Actuator Heap", "/actuator/heapdump", "critical"),
+            ("Swagger JSON", "/swagger.json", "medium"),
+            ("OpenAPI Spec", "/openapi.json", "medium"),
+            ("GraphQL", "/graphql", "medium"),
+            ("PHPMyAdmin", "/phpmyadmin/setup/index.php", "high"),
+            ("Adminer", "/adminer.php", "high"),
+            ("Robots.txt", "/robots.txt", "info"),
+            ("Sitemap", "/sitemap.xml", "info"),
+            ("Security.txt", "/.well-known/security.txt", "info"),
+            ("Package.json", "/package.json", "low"),
+            ("Composer JSON", "/composer.json", "low"),
+            ("WP Config Backup", "/wp-config.php.txt", "critical"),
+            ("htpasswd", "/.htpasswd", "high"),
+            ("Bash History", "/.bash_history", "critical"),
+            ("SSH Key", "/.ssh/id_rsa.pub", "high"),
         ]
-        
+
         with open(output_file, 'w') as f:
-            f.write(f"Quick Vulnerability Scan for: {url}\n")
+            f.write(f"Vulnerability Scan for: {url}\n")
             f.write("=" * 60 + "\n\n")
-            
-            for check_name, path in checks:
-                full_url = url + path
+
+            for check_name, path, severity in checks:
+                full_url = url.rstrip('/') + path
                 try:
                     response = requests.get(
-                        full_url,
-                        timeout=2,
-                        verify=False,
-                        allow_redirects=False
+                        full_url, timeout=2,
+                        verify=False, allow_redirects=False
                     )
-                    
-                    if response.status_code == 200:
-                        severity = "low"
-                        if '.git' in path or '.env' in path:
-                            severity = "high"
-                        elif 'config' in path or 'backup' in path:
-                            severity = "medium"
-                        
+
+                    if response.status_code == 200 and len(response.text) > 20:
                         findings.append({
                             'type': check_name.lower().replace(' ', '_'),
                             'path': path,
                             'severity': severity,
-                            'description': f"{check_name} exposed at {path}"
+                            'description': f"{check_name} exposed at {path}",
+                            'response_length': len(response.text)
                         })
-                        
-                        f.write(f"[{severity.upper()}] {check_name}: {full_url}\n")
-                        
-                except:
+
+                        icon = {'critical': '🔴', 'high': '🟠', 'medium': '🟡', 'low': '🔵', 'info': '⚪'}.get(severity, '⚪')
+                        f.write(f"{icon} [{severity.upper()}] {check_name}: {full_url}\n")
+
+                except Exception:
                     continue
-            
-            # Check security headers
+
+            # Security headers check
             try:
                 response = requests.head(url, timeout=3, verify=False)
                 headers = response.headers
-                
-                f.write("\nSecurity Headers Analysis:\n")
+
+                f.write("\n\nSecurity Headers Analysis:\n")
+                f.write("-" * 40 + "\n")
                 security_checks = {
-                    'X-Frame-Options': 'Missing clickjacking protection',
-                    'X-Content-Type-Options': 'Missing MIME sniffing protection',
-                    'X-XSS-Protection': 'Missing XSS protection',
-                    'Content-Security-Policy': 'Missing CSP header',
-                    'Strict-Transport-Security': 'Missing HSTS header'
+                    'X-Frame-Options': ('Missing clickjacking protection', 'medium'),
+                    'X-Content-Type-Options': ('Missing MIME sniffing protection', 'low'),
+                    'Content-Security-Policy': ('Missing CSP header', 'medium'),
+                    'Strict-Transport-Security': ('Missing HSTS header', 'medium'),
                 }
-                
+
                 missing = []
-                for header, message in security_checks.items():
+                for header, (message, sev) in security_checks.items():
                     if header not in headers:
                         missing.append(message)
-                        f.write(f"[-] {message}\n")
-                
+                        f.write(f"  ✗ {message}\n")
+                    else:
+                        f.write(f"  ✓ {header} present\n")
+
                 if missing:
                     findings.append({
                         'type': 'missing_security_headers',
-                        'severity': 'low',
-                        'description': 'Missing security headers',
+                        'severity': 'medium',
+                        'description': f"Missing {len(missing)} security headers",
                         'details': missing
                     })
-                else:
-                    f.write("[+] All security headers present\n")
-                    
-            except:
+
+            except Exception:
                 f.write("[!] Could not check security headers\n")
-        
+
+        # Sort by severity
+        severity_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3, 'info': 4}
+        findings.sort(key=lambda x: severity_order.get(x['severity'], 5))
+
         return findings

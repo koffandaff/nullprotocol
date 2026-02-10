@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Security Report — {{ data.domain }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #222;
+            background: #fff;
+            padding: 40px;
+            font-size: 12px;
+        }
+
+        h1 {
+            font-size: 22px;
+            color: #0d1117;
+            border-bottom: 3px solid #00bcd4;
+            padding-bottom: 8px;
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            font-size: 16px;
+            color: #00838f;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+            margin: 20px 0 10px;
+        }
+
+        h3 {
+            font-size: 13px;
+            color: #333;
+            margin: 10px 0 5px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 30px;
+        }
+
+        .header-left h1 {
+            margin-bottom: 5px;
+        }
+
+        .header-right {
+            text-align: right;
+            color: #666;
+            font-size: 11px;
+        }
+
+        .stat-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            flex: 1;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .stat-box .value {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .stat-box .label {
+            color: #666;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
+        .severity-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .severity-item {
+            flex: 1;
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .sev-critical {
+            background: #ffebee;
+            color: #c62828;
+            border: 1px solid #ef9a9a;
+        }
+
+        .sev-high {
+            background: #fff3e0;
+            color: #e65100;
+            border: 1px solid #ffcc80;
+        }
+
+        .sev-medium {
+            background: #fff8e1;
+            color: #f57f17;
+            border: 1px solid #ffe082;
+        }
+
+        .sev-low {
+            background: #e3f2fd;
+            color: #1565c0;
+            border: 1px solid #90caf9;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+            font-size: 11px;
+        }
+
+        th {
+            background: #263238;
+            color: #fff;
+            padding: 6px 8px;
+            text-align: left;
+        }
+
+        td {
+            padding: 5px 8px;
+            border-bottom: 1px solid #eee;
+        }
+
+        tr:nth-child(even) {
+            background: #fafafa;
+        }
+
+        code {
+            background: #f5f5f5;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 10px;
+        }
+
+        .vuln-item {
+            padding: 6px 10px;
+            margin: 4px 0;
+            border-radius: 4px;
+            border-left: 4px solid;
+        }
+
+        .vuln-critical {
+            border-color: #c62828;
+            background: #ffebee;
+        }
+
+        .vuln-high {
+            border-color: #e65100;
+            background: #fff3e0;
+        }
+
+        .vuln-medium {
+            border-color: #f57f17;
+            background: #fff8e1;
+        }
+
+        .vuln-low {
+            border-color: #1565c0;
+            background: #e3f2fd;
+        }
+
+        .footer {
+            margin-top: 30px;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
+            color: #999;
+            font-size: 10px;
+            text-align: center;
+        }
+
+        .ai-section {
+            background: #f3e5f5;
+            border: 1px solid #ce93d8;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .ai-section h2 {
+            color: #6a1b9a;
+            border-color: #ce93d8;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            font-size: 11px;
+            line-height: 1.5;
+        }
+
+        @media print {
+            body {
+                padding: 20px;
+            }
+
+            @page {
+                margin: 1cm;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>🛡️ Security Assessment Report</h1>
+            <div><strong>Target:</strong> {{ data.domain }}</div>
+        </div>
+        <div class="header-right">
+            <div><strong>NullProtocol v2.0</strong></div>
+            <div>{{ data.timestamp[:19] if data.timestamp else 'N/A' }}</div>
+            <div>CONFIDENTIAL</div>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stat-row">
+        <div class="stat-box">
+            <div class="value" style="color:#0097a7;">{{ data.web_targets_count|default(0) }}</div>
+            <div class="label">Web Targets</div>
+        </div>
+        <div class="stat-box">
+            <div class="value" style="color:#f57c00;">{{ data.service_targets_count|default(0) }}</div>
+            <div class="label">Services</div>
+        </div>
+        <div class="stat-box">
+            <div class="value" style="color:#388e3c;">{{ data.ips_count|default(0) }}</div>
+            <div class="label">IPs</div>
+        </div>
+        <div class="stat-box">
+            <div class="value" style="color:#d32f2f;">{{ exploit_count }}</div>
+            <div class="label">Exploits</div>
+        </div>
+    </div>
+
+    <!-- Vulnerability Severity -->
+    <h2>Vulnerability Summary</h2>
+    <div class="severity-row">
+        <div class="severity-item sev-critical">Critical: {{ vuln_stats.critical }}</div>
+        <div class="severity-item sev-high">High: {{ vuln_stats.high }}</div>
+        <div class="severity-item sev-medium">Medium: {{ vuln_stats.medium }}</div>
+        <div class="severity-item sev-low">Low: {{ vuln_stats.low }}</div>
+    </div>
+
+    <!-- Web Targets -->
+    {% if data.web_targets %}
+    <h2>Web Targets</h2>
+    {% for wt in data.web_targets %}
+    <h3>{{ wt.target.url }}</h3>
+    {% if wt.vulnerabilities %}
+    {% for v in wt.vulnerabilities[:8] %}
+    <div class="vuln-item vuln-{{ v.severity }}">
+        <strong>[{{ v.severity|upper }}]</strong> {{ v.description }}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% if wt.exploits %}
+    <table>
+        <thead>
+            <tr>
+                <th>Exploit</th>
+                <th>Vector</th>
+                <th>Severity</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in wt.exploits[:5] %}
+            <tr>
+                <td>{{ e.title }}</td>
+                <td>{{ e.attack_vector }}</td>
+                <td>{{ e.severity|upper }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+
+    <!-- Services -->
+    {% if data.service_targets %}
+    <h2>Service Targets</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>IP</th>
+                <th>Port</th>
+                <th>Service</th>
+                <th>Version</th>
+                <th>Exploits</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for st in data.service_targets %}
+            <tr>
+                <td><code>{{ st.target.ip }}</code></td>
+                <td>{{ st.target.port }}</td>
+                <td>{{ st.target.service }}</td>
+                <td>{{ st.target.version or '—' }}</td>
+                <td>{{ st.exploits|length }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- SQLi -->
+    {% if sqli_count > 0 %}
+    <h2>SQL Injection Targets ({{ sqli_count }})</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>URL</th>
+                <th>Type</th>
+                <th>Score</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for url, cdata in data.crawler.items() if data.crawler is mapping %}
+            {% for sqli in cdata.potential_sqli|default([]) %}
+            <tr>
+                <td><code>{{ sqli.url }}</code></td>
+                <td>{{ sqli.type }}</td>
+                <td>{{ sqli.sqli_score }}</td>
+            </tr>
+            {% endfor %}
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Ollama -->
+    {% if data.ollama_analysis %}
+    <div class="ai-section">
+        <h2>🤖 AI-Powered Analysis</h2>
+        <pre>{{ data.ollama_analysis }}</pre>
+    </div>
+    {% endif %}
+
+    <div class="footer">
+        Generated by NullProtocol HostRecon v2.0 — Developed by Dhruvil (github.com/koffandaff) — CONFIDENTIAL
+    </div>
+</body>
+
+</html>

@@ -4,13 +4,22 @@ import json
 import time
 from datetime import datetime
 import concurrent.futures
-import re  # Added import
+import re
 from collections import Counter
 
 # Tool modules
 from ReconEnhancerTools.web_scanner import WebScanner
 from ReconEnhancerTools.exploit_searcher import EnhancedExploitSearcher
 from ReconEnhancerTools.ip_analyzer import IPAnalyzer
+from ReconEnhancerTools.ollama_handler import (
+    is_ollama_available, interactive_ollama_check,
+    analyze_findings_with_ollama, suggest_exploits_with_ollama
+)
+from ReconEnhancerTools.crawler import SQLiCrawler
+from utility import (
+    console, section_header, status_msg, success_msg,
+    error_msg, warning_msg, info_msg, make_table, get_progress_bar
+)
 
 class ReconEnhancer:
     def __init__(self, domain, subdomain_file, nmap_json, ip_input):
@@ -40,10 +49,15 @@ class ReconEnhancer:
         self.web_scanner = WebScanner(self.data_dir)
         self.exploit_searcher = EnhancedExploitSearcher(self.data_dir)
         self.ip_analyzer = IPAnalyzer(self.data_dir)
+        self.crawler = SQLiCrawler(self.data_dir)
 
-        print(f"[+] Recon Enhancer initialized for {self.domain}")
-        print(f"[+] Tools loaded: WebScanner, EnhancedExploitSearcher, IPAnalyzer")
-        print(f"[+] IPs to analyze: {len(self.ips)}")
+        # Ollama integration
+        self.use_ollama = False
+        self.ollama_model = None
+
+        success_msg(f"Recon Enhancer initialized for {self.domain}")
+        info_msg(f"Tools: WebScanner, ExploitSearcher, IPAnalyzer, SQLiCrawler")
+        info_msg(f"IPs to analyze: {len(self.ips)}")
 
     def load_subdomains(self):
         """Load subdomains from file."""
@@ -51,10 +65,10 @@ class ReconEnhancer:
             if os.path.exists(self.subdomain_file):
                 with open(self.subdomain_file, 'r') as f:
                     subdomains = [line.strip() for line in f if line.strip()]
-                    print(f"[+] Loaded {len(subdomains)} subdomains")
+                    success_msg(f"Loaded {len(subdomains)} subdomains")
                     return subdomains
         except Exception as e:
-            print(f"[!] Error loading subdomains: {e}")
+            error_msg(f"Error loading subdomains: {e}")
         return []
 
     def load_ips(self):
@@ -75,9 +89,9 @@ class ReconEnhancer:
             elif isinstance(self.ip_input, list):
                 ips = self.ip_input
         except Exception as e:
-            print(f"[!] Error loading IPs: {e}")
+            error_msg(f"Error loading IPs: {e}")
 
-        print(f"[+] Loaded {len(ips)} IPs from input")
+        info_msg(f"Loaded {len(ips)} IPs from input")
         return ips
 
     def extract_ips_from_nmap(self):
@@ -86,9 +100,9 @@ class ReconEnhancer:
         try:
             if self.nmap_data and 'serviceDiscovery' in self.nmap_data:
                 ips = list(self.nmap_data['serviceDiscovery'].keys())
-                print(f"[+] Extracted {len(ips)} IPs from Nmap data")
+                info_msg(f"Extracted {len(ips)} IPs from Nmap data")
         except Exception as e:
-            print(f"[!] Error extracting IPs from Nmap: {e}")
+            error_msg(f"Error extracting IPs from Nmap: {e}")
         
         return ips
 
@@ -98,22 +112,13 @@ class ReconEnhancer:
             if os.path.exists(self.nmap_json):
                 with open(self.nmap_json, 'r') as f:
                     data = json.load(f)
-                    print("[+] Nmap data loaded successfully")
-                    
-                    # Debug: Show IPs with open ports
+                    success_msg("Nmap data loaded")
                     if 'serviceDiscovery' in data:
-                        ips_with_ports = []
-                        for ip, host_data in data['serviceDiscovery'].items():
-                            open_ports = host_data.get('openPorts', [])
-                            if open_ports:
-                                ips_with_ports.append(ip)
-                        print(f"[+] IPs with open ports: {len(ips_with_ports)}")
-                        if ips_with_ports:
-                            print(f"[+] Example: {ips_with_ports[:3]}")
-                    
+                        ips_with_ports = [ip for ip, hd in data['serviceDiscovery'].items() if hd.get('openPorts')]
+                        info_msg(f"IPs with open ports: {len(ips_with_ports)}")
                     return data
         except Exception as e:
-            print(f"[!] Error loading Nmap JSON: {e}")
+            error_msg(f"Error loading Nmap JSON: {e}")
         return {}
 
     def extract_all_targets(self):
@@ -121,7 +126,7 @@ class ReconEnhancer:
         targets = []
         
         if not self.nmap_data:
-            print("[!] No Nmap data available")
+            warning_msg("No Nmap data available")
             return targets
         
         if 'serviceDiscovery' in self.nmap_data:
@@ -194,14 +199,15 @@ class ReconEnhancer:
                 seen.add(key)
                 unique_targets.append(target)
 
-        print(f"[+] Extracted {len(unique_targets)} unique targets")
-        
-        # Show breakdown
         web_count = len([t for t in unique_targets if t['type'] == 'web'])
         service_count = len([t for t in unique_targets if t['type'] == 'service'])
         ip_only_count = len([t for t in unique_targets if t['type'] == 'ip_only'])
-        
-        print(f"[+] Breakdown: {web_count} web, {service_count} service, {ip_only_count} IP-only targets")
+
+        make_table(
+            "Extracted Targets",
+            [("Type", "cyan"), ("Count", "green")],
+            [("Web", str(web_count)), ("Service", str(service_count)), ("IP-only", str(ip_only_count))]
+        )
         
         return unique_targets
 
@@ -324,7 +330,7 @@ class ReconEnhancer:
 
     def scan_web_target(self, target):
         """Scan a single web target."""
-        print(f"  Scanning web target: {target['url']}")
+        status_msg(f"Scanning web target: {target['url']}")
         
         results = {
             'target': target,
@@ -340,28 +346,28 @@ class ReconEnhancer:
             tech_data = self.web_scanner.run_whatweb(target['url'])
             results['technologies'] = tech_data
         except Exception as e:
-            print(f"    [!] WhatWeb failed: {e}")
+            warning_msg(f"WhatWeb failed: {e}")
         
         # Directory scanning
         try:
             dir_results = self.web_scanner.run_gobuster(target['url'])
             results['directories'] = dir_results[:50]
         except Exception as e:
-            print(f"    [!] Gobuster failed: {e}")
+            warning_msg(f"Gobuster failed: {e}")
         
         # API endpoint discovery
         try:
             api_results = self.web_scanner.check_api_endpoints(target['url'])
             results['api_endpoints'] = api_results[:30]
         except Exception as e:
-            print(f"    [!] API check failed: {e}")
+            warning_msg(f"API check failed: {e}")
         
         # Vulnerability scan
         try:
             vuln_results = self.web_scanner.quick_vuln_scan(target['url'])
             results['vulnerabilities'] = vuln_results
         except Exception as e:
-            print(f"    [!] Vulnerability scan failed: {e}")
+            warning_msg(f"Vulnerability scan failed: {e}")
         
         # Exploit search
         try:
@@ -373,13 +379,13 @@ class ReconEnhancer:
             )
             results['exploits'] = exploit_results[:10]
         except Exception as e:
-            print(f"    [!] Exploit search failed: {e}")
+            warning_msg(f"Exploit search failed: {e}")
         
         return results
 
     def analyze_service_target(self, target):
         """Analyze a non-web service target."""
-        print(f"  Analyzing service: {target['ip']}:{target['port']} ({target['service']})")
+        status_msg(f"Analyzing service: {target['ip']}:{target['port']} ({target['service']})")
         
         results = {
             'target': target,
@@ -401,13 +407,13 @@ class ReconEnhancer:
             )
             results['exploits'] = exploit_results[:10]
         except Exception as e:
-            print(f"    [!] Exploit search failed: {e}")
+            warning_msg(f"Exploit search failed: {e}")
         
         return results
 
     def analyze_ip_with_ports(self, ip_address):
         """Analyze IP with port information."""
-        print(f"  Analyzing IP with ports: {ip_address}")
+        status_msg(f"Analyzing IP: {ip_address}")
         
         try:
             # Get IP geolocation info
@@ -424,7 +430,7 @@ class ReconEnhancer:
             }
             
         except Exception as e:
-            print(f"    [!] IP analysis failed: {e}")
+            warning_msg(f"IP analysis failed for {ip_address}: {e}")
             return {
                 'ip': ip_address,
                 'error': str(e),
@@ -601,10 +607,8 @@ class ReconEnhancer:
             f.write("\n")
 
     def run_comprehensive_scan(self):
-        """Run comprehensive reconnaissance scan."""
-        print("\n" + "=" * 100)
-        print(f"COMPREHENSIVE RECONNAISSANCE SCAN - {self.domain}")
-        print("=" * 100)
+        """Run comprehensive reconnaissance scan with Ollama & Crawler integration."""
+        section_header(f"COMPREHENSIVE SCAN — {self.domain}", "🧠")
         
         start_time = time.time()
         
@@ -623,7 +627,7 @@ class ReconEnhancer:
         }
         
         # 1. Extract all targets
-        print("\n[1/5] Extracting targets from Nmap data...")
+        section_header("Step 1/7 — Extracting Targets", "📋")
         targets = self.extract_all_targets()
         
         web_targets = [t for t in targets if t['type'] == 'web']
@@ -632,29 +636,21 @@ class ReconEnhancer:
         all_results['web_targets_count'] = len(web_targets)
         all_results['service_targets_count'] = len(service_targets)
         
-        print(f"  Found {len(web_targets)} web targets")
-        print(f"  Found {len(service_targets)} service targets")
-        
         # 2. Scan web targets
         if web_targets:
-            print(f"\n[2/5] Scanning {len(web_targets)} web targets...")
-            
+            section_header(f"Step 2/7 — Scanning {len(web_targets)} Web Targets", "🌐")
             self.write_section_header("WEB TARGETS")
             
-            for i, target in enumerate(web_targets, 1):
-                print(f"  [{i}/{len(web_targets)}] {target['url']}")
-                
-                try:
-                    result = self.scan_web_target(target)
-                    
-                    # Write to report
-                    self.write_web_target_results(result)
-                    
-                    # Add to all results
-                    all_results['web_targets'].append(result)
-                    
-                except Exception as e:
-                    print(f"    [!] Failed: {e}")
+            with get_progress_bar() as progress:
+                task_id = progress.add_task("Web scan", total=len(web_targets))
+                for i, target in enumerate(web_targets, 1):
+                    try:
+                        result = self.scan_web_target(target)
+                        self.write_web_target_results(result)
+                        all_results['web_targets'].append(result)
+                    except Exception as e:
+                        error_msg(f"Failed: {target['url']}: {e}")
+                    progress.update(task_id, advance=1)
         else:
             self.write_section_header("WEB TARGETS")
             with open(self.report_file, 'a') as f:
@@ -662,164 +658,196 @@ class ReconEnhancer:
         
         # 3. Analyze service targets
         if service_targets:
-            print(f"\n[3/5] Analyzing {len(service_targets)} service targets...")
-            
+            section_header(f"Step 3/7 — Analyzing {len(service_targets)} Services", "🔧")
             self.write_section_header("SERVICE TARGETS")
             
-            for i, target in enumerate(service_targets, 1):
-                print(f"  [{i}/{len(service_targets)}] {target['ip']}:{target['port']} ({target['service']})")
-                
-                try:
-                    result = self.analyze_service_target(target)
-                    
-                    # Write to report
-                    self.write_service_target_results(result)
-                    
-                    # Add to all results
-                    all_results['service_targets'].append(result)
-                    
-                except Exception as e:
-                    print(f"    [!] Failed: {e}")
+            with get_progress_bar() as progress:
+                task_id = progress.add_task("Service scan", total=len(service_targets))
+                for target in service_targets:
+                    try:
+                        result = self.analyze_service_target(target)
+                        self.write_service_target_results(result)
+                        all_results['service_targets'].append(result)
+                    except Exception as e:
+                        error_msg(f"Failed: {target['ip']}:{target['port']}: {e}")
+                    progress.update(task_id, advance=1)
         else:
             self.write_section_header("SERVICE TARGETS")
             with open(self.report_file, 'a') as f:
                 f.write("No service targets found for scanning.\n")
         
-        # 4. Analyze IP addresses with open ports
-        print(f"\n[4/5] Analyzing {len(self.ips)} IP addresses with open ports...")
-        
+        # 4. Analyze IP addresses
+        section_header(f"Step 4/7 — Analyzing {len(self.ips)} IPs", "🔬")
         self.write_section_header("IP ANALYSIS")
         
         ip_analyses = []
         if self.ips:
             with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
                 future_to_ip = {executor.submit(self.analyze_ip_with_ports, ip): ip for ip in self.ips}
-                
                 for future in concurrent.futures.as_completed(future_to_ip):
                     ip = future_to_ip[future]
                     try:
                         ip_data = future.result()
                         ip_analyses.append(ip_data)
-                        
-                        # Write to report
                         self.write_ip_analysis_results(ip_data)
-                        
                     except Exception as e:
-                        print(f"    [!] Failed for {ip}: {e}")
+                        error_msg(f"Failed for {ip}: {e}")
         else:
             with open(self.report_file, 'a') as f:
                 f.write("No IP addresses available for analysis.\n")
         
         all_results['ip_analyses'] = ip_analyses
+
+        # 5. Crawler — Find SQLi targets on web services
+        section_header("Step 5/7 — Crawling for SQLi Targets", "🕷️")
+        all_results['crawler'] = {}
+        if web_targets:
+            try:
+                for target in web_targets[:5]:  # Limit to first 5 web targets
+                    crawl_data = self.crawler.crawl(target['url'])
+                    all_results['crawler'][target['url']] = crawl_data
+                self.crawler.save_results(self.domain)
+                
+                total_sqli = sum(
+                    len(c.get('potential_sqli', [])) for c in all_results['crawler'].values()
+                )
+                if total_sqli > 0:
+                    success_msg(f"Found {total_sqli} potential SQLi targets")
+                    self.write_section_header("SQL INJECTION TARGETS")
+                    with open(self.report_file, 'a') as f:
+                        for url, data in all_results['crawler'].items():
+                            for sqli in data.get('potential_sqli', []):
+                                f.write(f"  [{sqli['sqli_score']}] {sqli['url']}\n")
+                                f.write(f"       Params: {', '.join(sqli.get('params', sqli.get('fields', [])))}\n")
+                else:
+                    info_msg("No SQL injection targets identified")
+            except Exception as e:
+                warning_msg(f"Crawler error: {e}")
+        else:
+            info_msg("No web targets to crawl")
+
+        # 6. Ollama AI Analysis
+        section_header("Step 6/7 — AI-Powered Analysis", "🤖")
+        all_results['ollama_analysis'] = None
+        if self.use_ollama and self.ollama_model:
+            try:
+                status_msg(f"Sending findings to Ollama ({self.ollama_model})...")
+                analysis = analyze_findings_with_ollama(
+                    all_results, model=self.ollama_model
+                )
+                if analysis:
+                    all_results['ollama_analysis'] = analysis
+                    success_msg("AI analysis complete")
+                    
+                    self.write_section_header("AI-POWERED ANALYSIS (OLLAMA)")
+                    with open(self.report_file, 'a') as f:
+                        f.write(analysis + "\n")
+                    
+                    # Also try per-service exploit suggestions
+                    for target in service_targets[:5]:
+                        suggestion = suggest_exploits_with_ollama(
+                            target['service'],
+                            target.get('version', ''),
+                            [t['port'] for t in service_targets if t['ip'] == target['ip']],
+                            model=self.ollama_model
+                        )
+                        if suggestion:
+                            with open(self.report_file, 'a') as f:
+                                f.write(f"\n--- Exploit Suggestions for {target['service']} on {target['ip']} ---\n")
+                                f.write(suggestion + "\n")
+            except Exception as e:
+                warning_msg(f"Ollama analysis failed: {e}")
+        else:
+            info_msg("Ollama not enabled — skipping AI analysis")
         
-        # 5. Generate comprehensive summary
+        # 7. Generate comprehensive summary
+        section_header("Step 7/7 — Generating Summary", "📊")
         elapsed = time.time() - start_time
         
         self.write_section_header("SCAN SUMMARY")
         
+        # Count stats
+        severity_counts = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0}
+        total_vulns = 0
+        for web_result in all_results.get('web_targets', []):
+            for vuln in web_result.get('vulnerabilities', []):
+                sev = vuln.get('severity', 'low').lower()
+                if sev in severity_counts:
+                    severity_counts[sev] += 1
+                    total_vulns += 1
+        
+        exploit_counts = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0}
+        total_exploits = 0
+        for src in ['web_targets', 'service_targets']:
+            for result in all_results.get(src, []):
+                for exploit in result.get('exploits', []):
+                    sev = exploit.get('severity', 'low').lower()
+                    if sev in exploit_counts:
+                        exploit_counts[sev] += 1
+                        total_exploits += 1
+        
+        total_open_ports = sum(ip_data.get('open_ports_count', 0) for ip_data in ip_analyses)
+        
+        all_services = []
+        for ip_data in ip_analyses:
+            all_services.extend(ip_data.get('services_found', []))
+        service_counter = Counter(all_services)
+        
+        # Write summary to report file
         with open(self.report_file, 'a') as f:
             f.write(f"Scan Duration: {elapsed:.1f} seconds\n")
-            f.write(f"Total Targets Analyzed: {len(targets)}\n")
-            f.write(f"  - Web Targets: {len(web_targets)}\n")
-            f.write(f"  - Service Targets: {len(service_targets)}\n")
-            f.write(f"  - IP Addresses: {len(self.ips)}\n")
-            
-            # Count vulnerabilities by severity
-            severity_counts = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0}
-            total_vulns = 0
-            
-            for web_result in all_results.get('web_targets', []):
-                for vuln in web_result.get('vulnerabilities', []):
-                    severity = vuln.get('severity', 'low').lower()
-                    if severity in severity_counts:
-                        severity_counts[severity] += 1
-                        total_vulns += 1
-            
-            f.write(f"\nVulnerabilities Found: {total_vulns}\n")
-            if total_vulns > 0:
-                f.write("  By Severity:\n")
-                for severity, count in severity_counts.items():
-                    if count > 0:
-                        f.write(f"    {severity.upper()}: {count}\n")
-            
-            # Count exploits by severity
-            exploit_counts = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0}
-            total_exploits = 0
-            
-            # Count from web targets
-            for web_result in all_results.get('web_targets', []):
-                for exploit in web_result.get('exploits', []):
-                    severity = exploit.get('severity', 'low').lower()
-                    if severity in exploit_counts:
-                        exploit_counts[severity] += 1
-                        total_exploits += 1
-            
-            # Count from service targets
-            for service_result in all_results.get('service_targets', []):
-                for exploit in service_result.get('exploits', []):
-                    severity = exploit.get('severity', 'low').lower()
-                    if severity in exploit_counts:
-                        exploit_counts[severity] += 1
-                        total_exploits += 1
-            
-            f.write(f"\nRelevant Exploits Found: {total_exploits}\n")
-            if total_exploits > 0:
-                f.write("  By Severity:\n")
-                for severity, count in exploit_counts.items():
-                    if count > 0:
-                        f.write(f"    {severity.upper()}: {count}\n")
-            
-            # Count open ports across all IPs
-            total_open_ports = sum(ip_data.get('open_ports_count', 0) for ip_data in ip_analyses)
-            f.write(f"\nTotal Open Ports Found: {total_open_ports}\n")
-            
-            # Most common services
-            all_services = []
-            for ip_data in ip_analyses:
-                all_services.extend(ip_data.get('services_found', []))
-            
-            service_counter = Counter(all_services)
+            f.write(f"Total Targets: {len(targets)}\n")
+            f.write(f"  Web: {len(web_targets)}, Service: {len(service_targets)}, IPs: {len(self.ips)}\n")
+            f.write(f"Vulnerabilities: {total_vulns}\n")
+            f.write(f"Exploits: {total_exploits}\n")
+            f.write(f"Open Ports: {total_open_ports}\n")
             if service_counter:
-                f.write("\nMost Common Services:\n")
-                for service, count in service_counter.most_common(5):
-                    f.write(f"  {service}: {count} instances\n")
-            
-            f.write("\nOutput Files:\n")
-            f.write(f"  Main Report: {self.report_file}\n")
-            f.write(f"  JSON Data: {self.json_file}\n")
-            f.write(f"  Tool Outputs: {self.data_dir}/\n")
+                f.write("Common Services: " + ", ".join(f"{s}({c})" for s, c in service_counter.most_common(5)) + "\n")
+            f.write(f"\nOutput: {self.data_dir}/\n")
         
-        # Save all results to JSON
+        # Save JSON
         with open(self.json_file, 'w') as f:
             json.dump(all_results, f, indent=2)
         
-        print("\n" + "=" * 100)
-        print("SCAN COMPLETE!")
-        print(f"Duration: {elapsed:.1f} seconds")
-        print(f"Web Targets: {len(web_targets)}")
-        print(f"Service Targets: {len(service_targets)}")
-        print(f"IP Addresses: {len(self.ips)}")
-        print(f"Open Ports Found: {total_open_ports}")
-        print(f"Output: {self.data_dir}")
-        print("=" * 100)
+        # Beautiful console summary
+        summary_rows = [
+            ("Duration", f"{elapsed:.1f}s"),
+            ("Web Targets", str(len(web_targets))),
+            ("Service Targets", str(len(service_targets))),
+            ("IPs Analyzed", str(len(self.ips))),
+            ("Open Ports", str(total_open_ports)),
+            ("Vulnerabilities", str(total_vulns)),
+            ("Exploits Found", str(total_exploits)),
+            ("Ollama Analysis", "✓" if all_results.get('ollama_analysis') else "—"),
+        ]
+        make_table(
+            "🏁 SCAN COMPLETE",
+            [("Metric", "cyan"), ("Value", "green")],
+            summary_rows
+        )
+        success_msg(f"Results saved to: {self.data_dir}")
         
         return all_results
 
 
 def main(domain, subdomain_file, nmap_json, ip_input):
-    """Main function."""
-    print("\nRECON ENHANCER - Enhanced Edition")
-    print(f"Target: {domain}")
-    print("=" * 100)
+    """Main function with Ollama integration."""
+    section_header("RECON ENHANCER v2.0", "🧠")
+    info_msg(f"Target: {domain}")
     
     # Check required files
     for file_path in [subdomain_file, nmap_json]:
         if not os.path.exists(file_path):
-            print(f"[!] File not found: {file_path}")
+            error_msg(f"File not found: {file_path}")
             return None
     
     # Create enhancer
     enhancer = ReconEnhancer(domain, subdomain_file, nmap_json, ip_input)
+    
+    # Check Ollama availability
+    use_ollama, model = interactive_ollama_check()
+    enhancer.use_ollama = use_ollama
+    enhancer.ollama_model = model
     
     # Run comprehensive scan
     results = enhancer.run_comprehensive_scan()
