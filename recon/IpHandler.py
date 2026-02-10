@@ -1,6 +1,5 @@
 import os
 import json
-import subprocess
 import IpNmapHandler
 from utility import (
     Validate_Ip, FileGenarator, Create_Domain_Directory,
@@ -11,59 +10,33 @@ from utility import (
 
 
 def IpMasscan(ip_list, domain):
-    """Run masscan on validated IPs with proper error handling."""
+    """Run masscan on validated IPs — uses os.system() for proper sudo/terminal interaction."""
     ips = {}
     Dir = Create_Domain_Directory(domain, 'Ip')
 
     section_header("MASSCAN -- Fast Port Discovery")
 
-    with get_progress_bar() as progress:
-        task = progress.add_task("Scanning IPs", total=len(ip_list))
+    for ip in ip_list:
+        Name = FileGenarator(ip)
+        File = os.path.join(Dir, Name)
 
-        for ip in ip_list:
-            Name = FileGenarator(ip)
-            File = os.path.join(Dir, Name)
+        status_msg(f"Scanning {ip}...")
+        # os.system gives masscan direct terminal access (required for sudo password prompt)
+        os.system(f'sudo masscan --top-ports 1000 {ip} --open --rate=25000 --wait 0 -oJ {File}.json')
 
-            try:
-                # Rate 5000 is WSL-safe; 25000 overwhelms the virtual NIC
-                cmd = f'sudo masscan --top-ports 500 {ip} --open --rate=5000 --wait 2 -oJ {File}.json'
-                result = subprocess.run(
-                    cmd, shell=True,
-                    capture_output=True, text=True,
-                    timeout=180
-                )
-
-                json_path = f'{File}.json'
-                if os.path.exists(json_path) and os.path.getsize(json_path) > 2:
-                    with open(json_path, 'r') as f:
-                        data = f.read()
-                        ips[ip] = data
-                    success_msg(f"{ip} -- ports found")
-                else:
-                    warning_msg(f"{ip} -- no open ports detected")
-                    # Show stderr if masscan printed an error
-                    if result.stderr and result.stderr.strip():
-                        info_msg(f"masscan stderr: {result.stderr.strip()[:200]}")
-                    # Clean up empty files
-                    if os.path.exists(json_path):
-                        os.remove(json_path)
-
-            except subprocess.TimeoutExpired:
-                error_msg(f"{ip} -- masscan timed out (180s)")
-                info_msg("Tip: try running 'sudo masscan --top-ports 100 <IP> --rate=1000' manually to test")
-            except Exception as e:
-                error_msg(f"{ip} -- masscan error: {e}")
-
-            progress.update(task, advance=1)
+        json_path = f'{File}.json'
+        if os.path.exists(json_path) and os.path.getsize(json_path) > 2:
+            with open(json_path, 'r') as f:
+                data = f.read()
+                ips[ip] = data
+            success_msg(f"{ip} -- V ports found")
+        else:
+            warning_msg(f"{ip} -- V no open ports detected")
+            if os.path.exists(json_path):
+                os.remove(json_path)
 
     # Cleanup remaining empty JSON files
-    try:
-        subprocess.run(
-            f"find '{Dir}' -name '*.json' -type f -empty -delete 2>/dev/null",
-            shell=True, capture_output=True
-        )
-    except Exception:
-        pass
+    os.system(f"find '{Dir}' -name '*.json' -type f -empty -delete 2>/dev/null")
 
     return {'ip': ips, 'dir': Dir}
 
