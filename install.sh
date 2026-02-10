@@ -49,10 +49,24 @@ sudo apt install -y \
 
 # ─── New Tools (Brute Force + Fuzzing) ────────────────
 echo "[4/7] Installing attack & fuzzing tools..."
-sudo apt install -y \
-    hydra \
-    sqlmap \
-    wkhtmltopdf
+sudo apt install -y hydra sqlmap
+
+# Handle wkhtmltopdf installation (missing candidate fix for Kali/Ubuntu)
+if ! command -v wkhtmltopdf &> /dev/null; then
+    echo "  → Attempting to install wkhtmltopdf..."
+    if ! sudo apt install -y wkhtmltopdf 2>/dev/null; then
+        echo "  → [!] wkhtmltopdf not in repositories. Attempting manual download..."
+        # Download the deb based on architecture (Assuming amd64 for WSL)
+        # We use the focal/bullseye version as it's the most compatible
+        DEB_URL="https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox_0.12.6-1.focal_amd64.deb"
+        wget -q $DEB_URL -O /tmp/wkhtmltox.deb
+        sudo apt install -y /tmp/wkhtmltox.deb || {
+            echo "  → [!] Manual install failed. Attempting to fix dependencies..."
+            sudo apt --fix-broken install -y
+        }
+        rm /tmp/wkhtmltox.deb
+    fi
+fi
 
 # Install ffuf (Go-based fuzzer)
 if ! command -v ffuf &> /dev/null; then
