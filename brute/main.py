@@ -187,7 +187,18 @@ def main():
     warning_msg("This module launches active attacks. Use only with authorization!")
     console.print()
 
-    results_dir = os.path.join(os.path.dirname(__file__), '..', 'results')
+    # Scan results are saved relative to CWD (e.g. recon/results/<domain>/FinalReport/)
+    # Try CWD-relative first, then fallback to script-relative paths
+    _cwd_results = os.path.join(os.getcwd(), 'results')
+    _script_results = os.path.join(os.path.dirname(__file__), 'results')
+    _parent_results = os.path.join(os.path.dirname(__file__), '..', 'results')
+
+    if os.path.isdir(_cwd_results):
+        results_dir = _cwd_results
+    elif os.path.isdir(_script_results):
+        results_dir = _script_results
+    else:
+        results_dir = _parent_results
     data, domain = load_recon_data(results_dir)
 
     if not data:
