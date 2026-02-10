@@ -34,6 +34,8 @@ class SQLiCrawler:
         self.param_urls = []       # URLs with query parameters
         self.form_targets = []     # Forms found on pages
         self.potential_sqli = []   # High-priority SQLi targets
+        self._seen_param_keys = set()  # Dedup: (path, sorted_params)
+        self._seen_form_keys = set()   # Dedup: (action_path, sorted_fields)
 
         self.session = requests.Session()
         self.session.headers.update({
@@ -125,32 +127,34 @@ class SQLiCrawler:
 
     def _extract_param_urls(self, html, current_url, base_domain):
         """Find URLs with query parameters (prime SQLi targets)."""
+        urls_to_check = []
+
         # Check current URL
         parsed = urlparse(current_url)
         if parsed.query:
-            params = parse_qs(parsed.query)
-            self.param_urls.append({
-                'url': current_url,
-                'params': list(params.keys()),
-                'source': 'direct'
-            })
+            urls_to_check.append((current_url, 'direct'))
 
         # Find links with parameters in the HTML
         href_pattern = re.compile(r'href=["\']([^"\']*\?[^"\']+)["\']', re.IGNORECASE)
         for match in href_pattern.finditer(html):
             href = match.group(1)
             full_url = urljoin(current_url, href)
-            parsed = urlparse(full_url)
+            p = urlparse(full_url)
+            if p.netloc == base_domain and p.query:
+                urls_to_check.append((full_url, 'link'))
 
-            if parsed.netloc == base_domain and parsed.query:
-                params = parse_qs(parsed.query)
-                entry = {
-                    'url': full_url,
-                    'params': list(params.keys()),
-                    'source': 'link'
-                }
-                if entry not in self.param_urls:
-                    self.param_urls.append(entry)
+        for url, source in urls_to_check:
+            p = urlparse(url)
+            params = sorted(parse_qs(p.query).keys())
+            # Dedup key: path + sorted param names (ignores scheme, host, param values)
+            dedup_key = (p.path, tuple(params))
+            if dedup_key not in self._seen_param_keys:
+                self._seen_param_keys.add(dedup_key)
+                self.param_urls.append({
+                    'url': url,
+                    'params': params,
+                    'source': source
+                })
 
     def _extract_forms(self, html, current_url):
         """Extract forms from HTML (POST forms are great SQLi targets)."""
@@ -192,12 +196,17 @@ class SQLiCrawler:
                 fields.extend(pat.findall(form_content))
 
             if fields:
-                self.form_targets.append({
-                    'action': action_url,
-                    'method': method,
-                    'fields': fields,
-                    'page': current_url
-                })
+                # Dedup key: action path + sorted unique field names
+                action_path = urlparse(action_url).path
+                dedup_key = (action_path, tuple(sorted(set(fields))))
+                if dedup_key not in self._seen_form_keys:
+                    self._seen_form_keys.add(dedup_key)
+                    self.form_targets.append({
+                        'action': action_url,
+                        'method': method,
+                        'fields': fields,
+                        'page': current_url
+                    })
 
     def _identify_sqli_targets(self):
         """Score and rank targets for SQL injection potential."""
@@ -206,6 +215,8 @@ class SQLiCrawler:
                          'sort', 'type', 'view', 'action', 'file', 'path',
                          'table', 'select', 'report', 'role', 'update', 'login',
                          'email', 'pass', 'password', 'username']
+
+        raw_targets = []
 
         for entry in self.param_urls:
             score = 0
@@ -216,7 +227,7 @@ class SQLiCrawler:
                     score += 1
 
             if score > 0:
-                self.potential_sqli.append({
+                raw_targets.append({
                     'url': entry['url'],
                     'params': entry['params'],
                     'sqli_score': score,
@@ -236,7 +247,7 @@ class SQLiCrawler:
                 score += 2
 
             if score > 0:
-                self.potential_sqli.append({
+                raw_targets.append({
                     'url': form['action'],
                     'method': form['method'],
                     'fields': form['fields'],
@@ -244,8 +255,20 @@ class SQLiCrawler:
                     'type': 'form'
                 })
 
-        # Sort by score (highest first)
-        self.potential_sqli.sort(key=lambda x: x['sqli_score'], reverse=True)
+        # ── Final dedup: collapse HTTP/HTTPS and IP variants ──
+        # Key on (path, sorted params/fields, type) — keep highest score
+        best = {}  # dedup_key -> target
+        for t in raw_targets:
+            parsed = urlparse(t['url'])
+            if t['type'] == 'get_param':
+                key = (parsed.path, tuple(sorted(t.get('params', []))), 'get_param')
+            else:
+                key = (parsed.path, tuple(sorted(set(t.get('fields', [])))), 'form')
+
+            if key not in best or t['sqli_score'] > best[key]['sqli_score']:
+                best[key] = t
+
+        self.potential_sqli = sorted(best.values(), key=lambda x: x['sqli_score'], reverse=True)
 
     def save_results(self, domain):
         """Save crawler results to files."""

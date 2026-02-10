@@ -7,6 +7,7 @@ Reads enhanced.json and chains attacks using Hydra, SQLMap, etc.
 import os
 import sys
 import json
+from urllib.parse import urlparse
 
 # Add recon directory to path for utility imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'recon'))
@@ -201,8 +202,9 @@ def identify_attack_opportunities(data):
                         'func': hydra_http_form
                     })
 
-    # SQLi targets from crawler
+    # SQLi targets from crawler (deduplicated by path + params)
     crawler_data = data.get('crawler', {})
+    seen_sqli = set()
     if isinstance(crawler_data, dict):
         for url, cdata in crawler_data.items():
             for sqli in cdata.get('potential_sqli', []):
@@ -211,6 +213,17 @@ def identify_attack_opportunities(data):
                 score = sqli.get('sqli_score', 0)
 
                 if score >= 2:
+                    # Dedup key: path + sorted params/fields + type
+                    parsed = urlparse(sqli_url)
+                    if sqli_type == 'get_param':
+                        dedup_key = (parsed.path, tuple(sorted(sqli.get('params', []))), 'get')
+                    else:
+                        dedup_key = (parsed.path, tuple(sorted(set(sqli.get('fields', [])))), 'form')
+
+                    if dedup_key in seen_sqli:
+                        continue
+                    seen_sqli.add(dedup_key)
+
                     if sqli_type == 'get_param':
                         opportunities.append({
                             'type': 'sqli_get',

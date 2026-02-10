@@ -5,6 +5,11 @@
     <meta charset="UTF-8">
     <title>Security Report — {{ data.domain }}</title>
     <style>
+        @page {
+            margin: 1.5cm 1.8cm;
+            size: A4;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -15,52 +20,113 @@
             font-family: 'Segoe UI', Arial, sans-serif;
             color: #222;
             background: #fff;
-            padding: 40px;
-            font-size: 12px;
+            font-size: 11px;
+            line-height: 1.5;
         }
 
-        h1 {
-            font-size: 22px;
+        /* ── Cover Header ── */
+        .cover {
+            padding: 30px 0 20px;
+            border-bottom: 3px solid #00838f;
+            margin-bottom: 24px;
+        }
+
+        .cover h1 {
+            font-size: 26px;
             color: #0d1117;
-            border-bottom: 3px solid #00bcd4;
-            padding-bottom: 8px;
-            margin-bottom: 20px;
+            margin-bottom: 4px;
+            letter-spacing: -0.3px;
         }
 
-        h2 {
-            font-size: 16px;
+        .cover .subtitle {
+            font-size: 13px;
+            color: #555;
+        }
+
+        .cover-meta {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 14px;
+            font-size: 10px;
+            color: #666;
+            border-top: 1px solid #e0e0e0;
+            padding-top: 10px;
+        }
+
+        .cover-meta .label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .confidential {
+            display: inline-block;
+            background: #c62828;
+            color: #fff;
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 3px;
+            letter-spacing: 1px;
+        }
+
+        /* ── Table of Contents ── */
+        .toc {
+            margin-bottom: 28px;
+            page-break-after: avoid;
+        }
+
+        .toc h2 {
+            font-size: 15px;
             color: #00838f;
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 5px;
-            margin: 20px 0 10px;
+            border-bottom: 2px solid #00838f;
+            padding-bottom: 4px;
+            margin-bottom: 10px;
+        }
+
+        .toc-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 5px 0;
+            border-bottom: 1px dotted #ddd;
+            font-size: 11px;
+        }
+
+        .toc-item .toc-num {
+            color: #00838f;
+            font-weight: 700;
+            min-width: 24px;
+        }
+
+        .toc-item .toc-title {
+            flex: 1;
+        }
+
+        /* ── Section Headers ── */
+        h2.section-title {
+            font-size: 15px;
+            color: #00838f;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 4px;
+            margin: 24px 0 12px;
+            page-break-after: avoid;
+        }
+
+        h2.section-title .sec-num {
+            color: #00838f;
+            margin-right: 6px;
         }
 
         h3 {
-            font-size: 13px;
+            font-size: 12px;
             color: #333;
             margin: 10px 0 5px;
         }
 
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 30px;
-        }
-
-        .header-left h1 {
-            margin-bottom: 5px;
-        }
-
-        .header-right {
-            text-align: right;
-            color: #666;
-            font-size: 11px;
-        }
-
+        /* ── Stats Row ── */
         .stat-row {
             display: flex;
-            gap: 15px;
+            gap: 10px;
             margin-bottom: 20px;
         }
 
@@ -69,33 +135,35 @@
             background: #f8f9fa;
             border: 1px solid #dee2e6;
             border-radius: 6px;
-            padding: 12px;
+            padding: 10px;
             text-align: center;
         }
 
         .stat-box .value {
-            font-size: 28px;
+            font-size: 26px;
             font-weight: 700;
         }
 
         .stat-box .label {
             color: #666;
-            font-size: 10px;
+            font-size: 9px;
             text-transform: uppercase;
         }
 
+        /* ── Severity ── */
         .severity-row {
             display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
+            gap: 8px;
+            margin-bottom: 14px;
         }
 
         .severity-item {
             flex: 1;
-            padding: 8px;
+            padding: 6px;
             border-radius: 4px;
             text-align: center;
             font-weight: bold;
+            font-size: 11px;
         }
 
         .sev-critical {
@@ -122,22 +190,26 @@
             border: 1px solid #90caf9;
         }
 
+        /* ── Tables ── */
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 15px;
-            font-size: 11px;
+            margin-bottom: 12px;
+            font-size: 10px;
         }
 
         th {
             background: #263238;
             color: #fff;
-            padding: 6px 8px;
+            padding: 5px 7px;
             text-align: left;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         td {
-            padding: 5px 8px;
+            padding: 4px 7px;
             border-bottom: 1px solid #eee;
         }
 
@@ -146,17 +218,19 @@
         }
 
         code {
-            background: #f5f5f5;
+            background: #f0f0f0;
             padding: 1px 4px;
             border-radius: 3px;
-            font-size: 10px;
+            font-size: 9px;
         }
 
+        /* ── Vulnerability Items ── */
         .vuln-item {
-            padding: 6px 10px;
-            margin: 4px 0;
+            padding: 5px 8px;
+            margin: 3px 0;
             border-radius: 4px;
             border-left: 4px solid;
+            font-size: 10px;
         }
 
         .vuln-critical {
@@ -179,21 +253,13 @@
             background: #e3f2fd;
         }
 
-        .footer {
-            margin-top: 30px;
-            padding-top: 10px;
-            border-top: 1px solid #ddd;
-            color: #999;
-            font-size: 10px;
-            text-align: center;
-        }
-
+        /* ── AI Section ── */
         .ai-section {
             background: #f3e5f5;
             border: 1px solid #ce93d8;
             border-radius: 6px;
-            padding: 15px;
-            margin-top: 15px;
+            padding: 12px;
+            margin-top: 12px;
         }
 
         .ai-section h2 {
@@ -203,36 +269,126 @@
 
         pre {
             white-space: pre-wrap;
-            font-size: 11px;
-            line-height: 1.5;
+            font-size: 10px;
+            line-height: 1.4;
         }
 
+        /* ── Footer ── */
+        .footer {
+            margin-top: 24px;
+            padding-top: 8px;
+            border-top: 1px solid #ddd;
+            color: #999;
+            font-size: 9px;
+            text-align: center;
+        }
+
+        /* ── Print ── */
         @media print {
             body {
-                padding: 20px;
+                padding: 0;
             }
 
-            @page {
-                margin: 1cm;
+            .page-break {
+                page-break-before: always;
             }
         }
     </style>
 </head>
 
 <body>
-    <div class="header">
-        <div class="header-left">
-            <h1>🛡️ Security Assessment Report</h1>
-            <div><strong>Target:</strong> {{ data.domain }}</div>
-        </div>
-        <div class="header-right">
-            <div><strong>NullProtocol v2.0</strong></div>
-            <div>{{ data.timestamp[:19] if data.timestamp else 'N/A' }}</div>
-            <div>CONFIDENTIAL</div>
+    <!-- Cover -->
+    <div class="cover">
+        <h1>🛡️ Security Assessment Report</h1>
+        <div class="subtitle">Comprehensive Reconnaissance & Vulnerability Analysis</div>
+        <div class="cover-meta">
+            <div>
+                <span class="label">Target:</span> {{ data.domain }}
+            </div>
+            <div>
+                <span class="label">Date:</span> {{ data.timestamp[:19] if data.timestamp else 'N/A' }}
+            </div>
+            <div>
+                <span class="label">Tool:</span> NullProtocol v2.0
+            </div>
+            <div>
+                <span class="confidential">CONFIDENTIAL</span>
+            </div>
         </div>
     </div>
 
-    <!-- Stats -->
+    <!-- Table of Contents -->
+    <div class="toc">
+        <h2>Table of Contents</h2>
+        {% set ns = namespace(sec=1) %}
+        <div class="toc-item">
+            <span class="toc-num">{{ ns.sec }}</span>
+            <span class="toc-title">Executive Summary</span>
+        </div>
+        {% set ns.sec = ns.sec + 1 %}
+
+        {% if vuln_stats.critical > 0 or vuln_stats.high > 0 or vuln_stats.medium > 0 or vuln_stats.low > 0 %}
+        <div class="toc-item">
+            <span class="toc-num">{{ ns.sec }}</span>
+            <span class="toc-title">Vulnerability Summary</span>
+        </div>
+        {% set ns.sec = ns.sec + 1 %}
+        {% endif %}
+
+        {% if data.web_targets %}
+        <div class="toc-item">
+            <span class="toc-num">{{ ns.sec }}</span>
+            <span class="toc-title">Web Targets ({{ data.web_targets|length }})</span>
+        </div>
+        {% set ns.sec = ns.sec + 1 %}
+        {% endif %}
+
+        {% if data.service_targets %}
+        <div class="toc-item">
+            <span class="toc-num">{{ ns.sec }}</span>
+            <span class="toc-title">Service Targets ({{ data.service_targets|length }})</span>
+        </div>
+        {% set ns.sec = ns.sec + 1 %}
+        {% endif %}
+
+        {% if sqli_count > 0 %}
+        <div class="toc-item">
+            <span class="toc-num">{{ ns.sec }}</span>
+            <span class="toc-title">SQL Injection Targets ({{ sqli_count }})</span>
+        </div>
+        {% set ns.sec = ns.sec + 1 %}
+        {% endif %}
+
+        {% if brute_results %}
+        <div class="toc-item">
+            <span class="toc-num">{{ ns.sec }}</span>
+            <span class="toc-title">Brute Force Results ({{ brute_results|length }})</span>
+        </div>
+        {% set ns.sec = ns.sec + 1 %}
+        {% endif %}
+
+        {% if data.ip_analyses %}
+        <div class="toc-item">
+            <span class="toc-num">{{ ns.sec }}</span>
+            <span class="toc-title">IP Analysis ({{ data.ip_analyses|length }})</span>
+        </div>
+        {% set ns.sec = ns.sec + 1 %}
+        {% endif %}
+
+        {% if data.ollama_analysis %}
+        <div class="toc-item">
+            <span class="toc-num">{{ ns.sec }}</span>
+            <span class="toc-title">AI-Powered Analysis</span>
+        </div>
+        {% set ns.sec = ns.sec + 1 %}
+        {% endif %}
+    </div>
+
+    <!-- 1. Executive Summary -->
+    {% set ns2 = namespace(sec=1) %}
+    <h2 class="section-title"><span class="sec-num">{{ ns2.sec }}.</span> Executive Summary</h2>
+    {% set ns2.sec = ns2.sec + 1 %}
+
     <div class="stat-row">
         <div class="stat-box">
             <div class="value" style="color:#0097a7;">{{ data.web_targets_count|default(0) }}</div>
@@ -250,22 +406,43 @@
             <div class="value" style="color:#d32f2f;">{{ exploit_count }}</div>
             <div class="label">Exploits</div>
         </div>
+        {% if brute_results %}
+        <div class="stat-box">
+            <div class="value" style="color:#2e7d32;">{{ brute_success_count }}</div>
+            <div class="label">Brute Hits</div>
+        </div>
+        {% endif %}
     </div>
 
-    <!-- Vulnerability Severity -->
-    <h2>Vulnerability Summary</h2>
+    <!-- 2. Vulnerability Summary -->
+    {% if vuln_stats.critical > 0 or vuln_stats.high > 0 or vuln_stats.medium > 0 or vuln_stats.low > 0 %}
+    <h2 class="section-title"><span class="sec-num">{{ ns2.sec }}.</span> Vulnerability Summary</h2>
+    {% set ns2.sec = ns2.sec + 1 %}
     <div class="severity-row">
         <div class="severity-item sev-critical">Critical: {{ vuln_stats.critical }}</div>
         <div class="severity-item sev-high">High: {{ vuln_stats.high }}</div>
         <div class="severity-item sev-medium">Medium: {{ vuln_stats.medium }}</div>
         <div class="severity-item sev-low">Low: {{ vuln_stats.low }}</div>
     </div>
+    {% endif %}
 
     <!-- Web Targets -->
     {% if data.web_targets %}
-    <h2>Web Targets</h2>
+    <h2 class="section-title"><span class="sec-num">{{ ns2.sec }}.</span> Web Targets</h2>
+    {% set ns2.sec = ns2.sec + 1 %}
     {% for wt in data.web_targets %}
-    <h3>{{ wt.target.url }}</h3>
+    <h3>{{ wt.target.url }} <small style="color:#888;">({{ wt.target.service }})</small></h3>
+
+    {% if wt.technologies and wt.technologies.technologies %}
+    <div style="margin:4px 0 8px;">
+        <strong style="font-size:10px;">Technologies:</strong>
+        {% for tech in wt.technologies.technologies[:8] %}
+        <span style="background:#e8eaf6;padding:1px 6px;border-radius:3px;font-size:9px;margin-right:3px;">{{ tech
+            }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     {% if wt.vulnerabilities %}
     {% for v in wt.vulnerabilities[:8] %}
     <div class="vuln-item vuln-{{ v.severity }}">
@@ -273,21 +450,32 @@
     </div>
     {% endfor %}
     {% endif %}
-    {% if wt.exploits %}
+
+    {# Only show significant exploits: high/critical severity or has CVE #}
+    {% set sig_ex = [] %}
+    {% for e in wt.exploits|default([]) %}
+    {% if e.severity in ['critical', 'high'] or e.cve %}
+    {% if sig_ex.append(e) %}{% endif %}
+    {% endif %}
+    {% endfor %}
+    {% if sig_ex %}
     <table>
         <thead>
             <tr>
                 <th>Exploit</th>
+                <th>CVE</th>
                 <th>Vector</th>
                 <th>Severity</th>
             </tr>
         </thead>
         <tbody>
-            {% for e in wt.exploits[:5] %}
+            {% for e in sig_ex[:8] %}
             <tr>
                 <td>{{ e.title }}</td>
+                <td>{{ e.cve or '—' }}</td>
                 <td>{{ e.attack_vector }}</td>
-                <td>{{ e.severity|upper }}</td>
+                <td style="color:{% if e.severity in ['critical','high'] %}#c62828{% else %}#f57f17{% endif %};">{{
+                    e.severity|upper }}</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -298,7 +486,8 @@
 
     <!-- Services -->
     {% if data.service_targets %}
-    <h2>Service Targets</h2>
+    <h2 class="section-title"><span class="sec-num">{{ ns2.sec }}.</span> Service Targets</h2>
+    {% set ns2.sec = ns2.sec + 1 %}
     <table>
         <thead>
             <tr>
@@ -307,6 +496,7 @@
                 <th>Service</th>
                 <th>Version</th>
                 <th>Exploits</th>
+                <th>CVEs</th>
             </tr>
         </thead>
         <tbody>
@@ -317,6 +507,14 @@
                 <td>{{ st.target.service }}</td>
                 <td>{{ st.target.version or '—' }}</td>
                 <td>{{ st.exploits|length }}</td>
+                <td>
+                    {% set cve_exploits = st.exploits|default([])|selectattr('cve')|list %}
+                    {% if cve_exploits %}
+                    {% for ex in cve_exploits %}
+                    <span style="color:#c62828;font-size:9px;">{{ ex.cve }}</span>{{ ', ' if not loop.last }}
+                    {% endfor %}
+                    {% else %}—{% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>
@@ -325,12 +523,14 @@
 
     <!-- SQLi -->
     {% if sqli_count > 0 %}
-    <h2>SQL Injection Targets ({{ sqli_count }})</h2>
+    <h2 class="section-title"><span class="sec-num">{{ ns2.sec }}.</span> SQL Injection Targets</h2>
+    {% set ns2.sec = ns2.sec + 1 %}
     <table>
         <thead>
             <tr>
                 <th>URL</th>
                 <th>Type</th>
+                <th>Params</th>
                 <th>Score</th>
             </tr>
         </thead>
@@ -340,6 +540,7 @@
             <tr>
                 <td><code>{{ sqli.url }}</code></td>
                 <td>{{ sqli.type }}</td>
+                <td>{{ ', '.join(sqli.params|default(sqli.fields|default([]))) }}</td>
                 <td>{{ sqli.sqli_score }}</td>
             </tr>
             {% endfor %}
@@ -348,10 +549,72 @@
     </table>
     {% endif %}
 
+    <!-- Brute Force -->
+    {% if brute_results %}
+    <h2 class="section-title"><span class="sec-num">{{ ns2.sec }}.</span> Brute Force Results</h2>
+    {% set ns2.sec = ns2.sec + 1 %}
+    <table>
+        <thead>
+            <tr>
+                <th>Attack</th>
+                <th>Status</th>
+                <th>Detail</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in brute_results %}
+            <tr>
+                <td>{{ r.opportunity[:60] }}</td>
+                <td>
+                    {% if r.error is defined %}FAILED
+                    {% elif r.result is defined and r.result.success %}<strong style="color:#2e7d32;">SUCCESS</strong>
+                    {% else %}No Findings{% endif %}
+                </td>
+                <td>
+                    {% if r.error is defined %}<span style="color:#c62828;">{{ r.error[:40] }}</span>
+                    {% elif r.result is defined and r.result.success %}<strong>{{ r.result.message[:50] }}</strong>
+                    {% elif r.result is defined %}{{ r.result.message[:40] if r.result.message else '—' }}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- IP Analysis -->
+    {% if data.ip_analyses %}
+    <h2 class="section-title"><span class="sec-num">{{ ns2.sec }}.</span> IP Analysis</h2>
+    {% set ns2.sec = ns2.sec + 1 %}
+    <table>
+        <thead>
+            <tr>
+                <th>IP</th>
+                <th>Location</th>
+                <th>Open Ports</th>
+                <th>Services</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ip_data in data.ip_analyses %}
+            {% set info = ip_data.ip_info|default({}) %}
+            {% set geo = info.geolocation|default({}) %}
+            <tr>
+                <td><code>{{ info.ip|default('N/A') }}</code></td>
+                <td>{{ [geo.city, geo.region, geo.country]|select|join(', ') or '—' }}</td>
+                <td>{{ ip_data.open_ports_count|default(0) }}</td>
+                <td>{{ ip_data.services_found|default([])|reject('equalto','no_open_ports')|join(', ') or '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
     <!-- Ollama -->
     {% if data.ollama_analysis %}
+    <h2 class="section-title"><span class="sec-num">{{ ns2.sec }}.</span> AI-Powered Analysis</h2>
+    {% set ns2.sec = ns2.sec + 1 %}
     <div class="ai-section">
-        <h2>🤖 AI-Powered Analysis</h2>
         <pre>{{ data.ollama_analysis }}</pre>
     </div>
     {% endif %}

@@ -7,6 +7,7 @@ from datetime import datetime
 import concurrent.futures
 import re
 from collections import Counter
+from urllib.parse import urlparse
 
 # Suppress InsecureRequestWarning globally at the process level
 # This catches warnings from ALL sources (urllib3, requests.packages.urllib3, etc.)
@@ -687,21 +688,24 @@ class ReconEnhancer:
         all_results['web_targets_count'] = len(web_targets)
         all_results['service_targets_count'] = len(service_targets)
         
-        # 2. Scan web targets
+        # 2. Scan web targets (parallelized for speed)
         if web_targets:
             section_header(f"Step 2/7 -- Scanning {len(web_targets)} Web Targets")
             self.write_section_header("WEB TARGETS")
             
             with get_progress_bar() as progress:
                 task_id = progress.add_task("Web scan", total=len(web_targets))
-                for i, target in enumerate(web_targets, 1):
-                    try:
-                        result = self.scan_web_target(target)
-                        self.write_web_target_results(result)
-                        all_results['web_targets'].append(result)
-                    except Exception as e:
-                        error_msg(f"Failed: {target['url']}: {e}")
-                    progress.update(task_id, advance=1)
+                with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                    future_to_target = {executor.submit(self.scan_web_target, t): t for t in web_targets}
+                    for future in concurrent.futures.as_completed(future_to_target):
+                        target = future_to_target[future]
+                        try:
+                            result = future.result()
+                            self.write_web_target_results(result)
+                            all_results['web_targets'].append(result)
+                        except Exception as e:
+                            error_msg(f"Failed: {target['url']}: {e}")
+                        progress.update(task_id, advance=1)
         else:
             self.write_section_header("WEB TARGETS")
             with open(self.report_file, 'a') as f:
@@ -714,14 +718,17 @@ class ReconEnhancer:
             
             with get_progress_bar() as progress:
                 task_id = progress.add_task("Service scan", total=len(service_targets))
-                for target in service_targets:
-                    try:
-                        result = self.analyze_service_target(target)
-                        self.write_service_target_results(result)
-                        all_results['service_targets'].append(result)
-                    except Exception as e:
-                        error_msg(f"Failed: {target['ip']}:{target['port']}: {e}")
-                    progress.update(task_id, advance=1)
+                with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+                    future_to_target = {executor.submit(self.analyze_service_target, t): t for t in service_targets}
+                    for future in concurrent.futures.as_completed(future_to_target):
+                        target = future_to_target[future]
+                        try:
+                            result = future.result()
+                            self.write_service_target_results(result)
+                            all_results['service_targets'].append(result)
+                        except Exception as e:
+                            error_msg(f"Failed: {target['ip']}:{target['port']}: {e}")
+                        progress.update(task_id, advance=1)
         else:
             self.write_section_header("SERVICE TARGETS")
             with open(self.report_file, 'a') as f:
@@ -754,9 +761,33 @@ class ReconEnhancer:
         all_results['crawler'] = {}
         if web_targets:
             try:
-                for target in web_targets[:5]:  # Limit to first 5 web targets
-                    crawl_data = self.crawler.crawl(target['url'])
-                    all_results['crawler'][target['url']] = crawl_data
+                # Smart crawl: crawl by domain URL, not by IP.
+                # Multiple IPs often serve the same site, so crawling each IP
+                # would just re-discover the same pages and parameters.
+                seen_crawl_domains = set()
+                crawl_targets = []
+                for target in web_targets:
+                    url = target['url']
+                    parsed = urlparse(url)
+                    # Use netloc (host) as dedup key — skip if already crawling same host
+                    if parsed.netloc not in seen_crawl_domains:
+                        seen_crawl_domains.add(parsed.netloc)
+                        crawl_targets.append(url)
+
+                # Also add the main domain if not already covered
+                if self.domain:
+                    for proto in ['http', 'https']:
+                        d_url = f"{proto}://{self.domain}"
+                        d_parsed = urlparse(d_url)
+                        if d_parsed.netloc not in seen_crawl_domains:
+                            seen_crawl_domains.add(d_parsed.netloc)
+                            crawl_targets.append(d_url)
+
+                info_msg(f"Crawling {len(crawl_targets)} unique hosts (deduplicated from {len(web_targets)} targets)")
+
+                for url in crawl_targets[:8]:  # Cap at 8 unique hosts
+                    crawl_data = self.crawler.crawl(url)
+                    all_results['crawler'][url] = crawl_data
                 self.crawler.save_results(self.domain)
                 
                 total_sqli = sum(

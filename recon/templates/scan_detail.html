@@ -11,8 +11,8 @@
 </head>
 
 <body>
-    <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg border-bottom border-secondary">
+    <!-- Top Navbar -->
+    <nav class="navbar navbar-expand-lg border-bottom border-secondary" style="z-index:1030;">
         <div class="container-fluid">
             <a class="navbar-brand" href="/">
                 <i class="bi bi-shield-lock-fill text-cyan me-2"></i>
@@ -36,437 +36,528 @@
         </div>
     </nav>
 
-    <div class="container-fluid py-4">
-        <!-- Header -->
-        <div class="row mb-4">
-            <div class="col">
-                <h2 class="mb-1">
-                    <i class="bi bi-crosshair text-danger me-2"></i>{{ data.domain }}
-                </h2>
-                <p class="text-muted mb-0">
-                    <i class="bi bi-clock me-1"></i>{{ data.timestamp[:19] if data.timestamp else 'N/A' }}
-                </p>
-            </div>
-        </div>
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar-nav d-none d-lg-block" id="sidebarNav">
+        <div class="nav-label">Overview</div>
+        <a class="nav-link active" href="#section-summary">
+            <i class="bi bi-speedometer2 me-2"></i>Summary
+        </a>
+        <a class="nav-link" href="#section-vulns">
+            <i class="bi bi-exclamation-triangle me-2"></i>Vulnerabilities
+        </a>
 
-        <!-- Stats Row -->
-        <div class="row g-3 mb-4">
-            <div class="col-md-3 col-6">
-                <div class="card text-center stat-card">
-                    <div class="card-body py-3">
-                        <div class="display-6 fw-bold text-info">{{ data.web_targets_count|default(0) }}</div>
-                        <small class="text-muted">Web Targets</small>
-                    </div>
+        <div class="nav-label">Targets</div>
+        {% if data.web_targets %}
+        <a class="nav-link" href="#section-web">
+            <i class="bi bi-globe me-2"></i>Web Targets
+        </a>
+        {% endif %}
+        {% if data.service_targets %}
+        <a class="nav-link" href="#section-services">
+            <i class="bi bi-hdd-network me-2"></i>Services
+        </a>
+        {% endif %}
+        {% if sqli_count > 0 %}
+        <a class="nav-link" href="#section-sqli">
+            <i class="bi bi-database-fill-exclamation me-2"></i>SQLi Targets
+        </a>
+        {% endif %}
+
+        <div class="nav-label">Analysis</div>
+        <a class="nav-link" href="#section-brute">
+            <i class="bi bi-key me-2"></i>Brute Force
+        </a>
+        {% if data.ip_analyses %}
+        <a class="nav-link" href="#section-ips">
+            <i class="bi bi-pc-display me-2"></i>IP Analysis
+        </a>
+        {% endif %}
+        {% if data.ollama_analysis %}
+        <a class="nav-link" href="#section-ai">
+            <i class="bi bi-robot me-2"></i>AI Analysis
+        </a>
+        {% endif %}
+    </nav>
+
+    <!-- Main Content -->
+    <div class="main-content-shifted">
+        <div class="container-fluid py-4">
+            <!-- Header + Stats -->
+            <div id="section-summary" class="row mb-4">
+                <div class="col">
+                    <h2 class="mb-1">
+                        <i class="bi bi-crosshair text-danger me-2"></i>{{ data.domain }}
+                    </h2>
+                    <p class="text-muted mb-0">
+                        <i class="bi bi-clock me-1"></i>{{ data.timestamp[:19] if data.timestamp else 'N/A' }}
+                    </p>
                 </div>
             </div>
-            <div class="col-md-3 col-6">
-                <div class="card text-center stat-card">
-                    <div class="card-body py-3">
-                        <div class="display-6 fw-bold text-warning">{{ data.service_targets_count|default(0) }}</div>
-                        <small class="text-muted">Service Targets</small>
+
+            <!-- Stats Row -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-3 col-6">
+                    <div class="card text-center stat-card">
+                        <div class="card-body py-3">
+                            <div class="display-6 fw-bold text-info">{{ data.web_targets_count|default(0) }}</div>
+                            <small class="text-muted">Web Targets</small>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="col-md-3 col-6">
-                <div class="card text-center stat-card">
-                    <div class="card-body py-3">
-                        <div class="display-6 fw-bold text-success">{{ data.ips_count|default(0) }}</div>
-                        <small class="text-muted">IPs Analyzed</small>
+                <div class="col-md-3 col-6">
+                    <div class="card text-center stat-card">
+                        <div class="card-body py-3">
+                            <div class="display-6 fw-bold text-warning">{{ data.service_targets_count|default(0) }}
+                            </div>
+                            <small class="text-muted">Service Targets</small>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="col-md-3 col-6">
-                <div class="card text-center stat-card">
-                    <div class="card-body py-3">
-                        <div class="display-6 fw-bold text-danger">{{ exploit_count }}</div>
-                        <small class="text-muted">Exploits Found</small>
+                <div class="col-md-3 col-6">
+                    <div class="card text-center stat-card">
+                        <div class="card-body py-3">
+                            <div class="display-6 fw-bold text-success">{{ data.ips_count|default(0) }}</div>
+                            <small class="text-muted">IPs Analyzed</small>
+                        </div>
                     </div>
                 </div>
+                <div class="col-md-3 col-6">
+                    <div class="card text-center stat-card">
+                        <div class="card-body py-3">
+                            <div class="display-6 fw-bold text-danger">{{ exploit_count }}</div>
+                            <small class="text-muted">Exploits Found</small>
+                        </div>
+                    </div>
+                </div>
+                {% if brute_results %}
+                <div class="col-md-3 col-6">
+                    <div class="card text-center stat-card">
+                        <div class="card-body py-3">
+                            <div class="display-6 fw-bold" style="color: #28a745;">{{ brute_success_count }}</div>
+                            <small class="text-muted">Brute Force Hits</small>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
             </div>
-            {% if brute_results %}
-            <div class="col-md-3 col-6">
-                <div class="card text-center stat-card">
-                    <div class="card-body py-3">
-                        <div class="display-6 fw-bold" style="color: #28a745;">{{ brute_success_count }}</div>
-                        <small class="text-muted">Brute Force Hits</small>
+
+            <!-- Vulnerability Severity Breakdown -->
+            <div id="section-vulns">
+                {% if vuln_stats.critical > 0 or vuln_stats.high > 0 or vuln_stats.medium > 0 or vuln_stats.low > 0 %}
+                <div class="card mb-4">
+                    <div class="card-header"><i
+                            class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Vulnerabilities by
+                        Severity</div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-3 col-6">
+                                <div class="severity-box severity-critical">
+                                    <span class="fw-bold display-6">{{ vuln_stats.critical }}</span>
+                                    <span class="ms-2">Critical</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="severity-box severity-high">
+                                    <span class="fw-bold display-6">{{ vuln_stats.high }}</span>
+                                    <span class="ms-2">High</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="severity-box severity-medium">
+                                    <span class="fw-bold display-6">{{ vuln_stats.medium }}</span>
+                                    <span class="ms-2">Medium</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="severity-box severity-low">
+                                    <span class="fw-bold display-6">{{ vuln_stats.low }}</span>
+                                    <span class="ms-2">Low</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Web Targets -->
+            {% if data.web_targets %}
+            <div id="section-web" class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-globe text-cyan me-2"></i>Web Targets
+                    <span class="badge bg-info ms-2">{{ data.web_targets|length }}</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="accordion" id="webTargets">
+                        {% for wt in data.web_targets %}
+                        {# Filter exploits: only keep significant ones (high/critical severity or have CVE) #}
+                        {% set sig_exploits = [] %}
+                        {% for e in wt.exploits|default([]) %}
+                        {% if e.severity in ['critical', 'high'] or e.cve %}
+                        {% if sig_exploits.append(e) %}{% endif %}
+                        {% endif %}
+                        {% endfor %}
+                        <div class="accordion-item bg-transparent border-secondary">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed bg-transparent text-light" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#web-{{ loop.index }}">
+                                    <i class="bi bi-link-45deg me-2 text-cyan"></i>
+                                    {{ wt.target.url }}
+                                    <span class="badge bg-secondary ms-2">{{ wt.target.service }}</span>
+                                    {% if wt.vulnerabilities %}
+                                    <span class="badge bg-danger ms-1">{{ wt.vulnerabilities|length }} vulns</span>
+                                    {% endif %}
+                                    {% if sig_exploits %}
+                                    <span class="badge bg-warning ms-1">{{ sig_exploits|length }} exploits</span>
+                                    {% endif %}
+                                </button>
+                            </h2>
+                            <div id="web-{{ loop.index }}" class="accordion-collapse collapse"
+                                data-bs-parent="#webTargets">
+                                <div class="accordion-body">
+                                    <!-- Technologies -->
+                                    {% if wt.technologies and wt.technologies.technologies %}
+                                    <h6 class="text-cyan"><i class="bi bi-cpu me-1"></i>Technologies</h6>
+                                    <div class="mb-3">
+                                        {% for tech in wt.technologies.technologies[:10] %}
+                                        <span class="badge bg-dark border border-secondary me-1 mb-1">{{ tech }}</span>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- Directories -->
+                                    {% if wt.directories %}
+                                    <h6 class="text-cyan"><i class="bi bi-folder me-1"></i>Directories ({{
+                                        wt.directories|length }})</h6>
+                                    <div class="table-responsive mb-3">
+                                        <table class="table table-sm table-dark table-striped">
+                                            <thead>
+                                                <tr>
+                                                    <th>Path</th>
+                                                    <th>Status</th>
+                                                    <th>Type</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for d in wt.directories[:15] %}
+                                                <tr>
+                                                    <td><code>{{ d.path }}</code></td>
+                                                    <td>{{ d.status }}</td>
+                                                    <td><span class="badge bg-secondary">{{ d.classification }}</span>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- API Endpoints -->
+                                    {% if wt.api_endpoints %}
+                                    <h6 class="text-cyan"><i class="bi bi-braces me-1"></i>API Endpoints ({{
+                                        wt.api_endpoints|length }})</h6>
+                                    <div class="table-responsive mb-3">
+                                        <table class="table table-sm table-dark table-striped">
+                                            <thead>
+                                                <tr>
+                                                    <th>Endpoint</th>
+                                                    <th>Status</th>
+                                                    <th>Info</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for ep in wt.api_endpoints[:15] %}
+                                                <tr>
+                                                    <td><code>{{ ep.endpoint }}</code></td>
+                                                    <td><span
+                                                            class="badge {% if ep.status < 300 %}bg-success{% elif ep.status < 400 %}bg-warning{% else %}bg-danger{% endif %}">{{
+                                                            ep.status }}</span></td>
+                                                    <td>{{ ep.info }}</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- Vulnerabilities -->
+                                    {% if wt.vulnerabilities %}
+                                    <h6 class="text-danger"><i class="bi bi-bug me-1"></i>Vulnerabilities</h6>
+                                    <div class="mb-3">
+                                        {% for v in wt.vulnerabilities[:10] %}
+                                        <div
+                                            class="alert alert-{{ 'danger' if v.severity in ['critical','high'] else 'warning' if v.severity == 'medium' else 'info' }} py-2 mb-2">
+                                            <strong>[{{ v.severity|upper }}]</strong> {{ v.description }}
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- Exploits (filtered: only significant) -->
+                                    {% if sig_exploits %}
+                                    <h6 class="text-warning"><i class="bi bi-lightning me-1"></i>Exploits</h6>
+                                    {% for e in sig_exploits[:5] %}
+                                    <div class="exploit-item mb-2 p-2 rounded">
+                                        <div class="fw-bold d-flex align-items-center gap-2">
+                                            {{ e.title }}
+                                            {% if e.cve %}
+                                            <a href="https://nvd.nist.gov/vuln/detail/{{ e.cve }}" target="_blank"
+                                                class="badge bg-danger text-decoration-none" title="View on NVD">
+                                                <i class="bi bi-shield-exclamation me-1"></i>{{ e.cve }}
+                                            </a>
+                                            {% endif %}
+                                        </div>
+                                        <small class="text-muted">
+                                            Vector: {{ e.attack_vector }} |
+                                            Severity: <span
+                                                class="text-{{ 'danger' if e.severity in ['critical','high'] else 'warning' }}">{{
+                                                e.severity|upper }}</span>
+                                        </small>
+                                    </div>
+                                    {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
                     </div>
                 </div>
             </div>
             {% endif %}
-        </div>
 
-        <!-- Vulnerability Severity Breakdown -->
-        {% if vuln_stats.critical > 0 or vuln_stats.high > 0 or vuln_stats.medium > 0 or vuln_stats.low > 0 %}
-        <div class="card mb-4">
-            <div class="card-header"><i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Vulnerabilities by
-                Severity</div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-3 col-6">
-                        <div class="severity-box severity-critical">
-                            <span class="fw-bold display-6">{{ vuln_stats.critical }}</span>
-                            <span class="ms-2">Critical</span>
-                        </div>
-                    </div>
-                    <div class="col-md-3 col-6">
-                        <div class="severity-box severity-high">
-                            <span class="fw-bold display-6">{{ vuln_stats.high }}</span>
-                            <span class="ms-2">High</span>
-                        </div>
-                    </div>
-                    <div class="col-md-3 col-6">
-                        <div class="severity-box severity-medium">
-                            <span class="fw-bold display-6">{{ vuln_stats.medium }}</span>
-                            <span class="ms-2">Medium</span>
-                        </div>
-                    </div>
-                    <div class="col-md-3 col-6">
-                        <div class="severity-box severity-low">
-                            <span class="fw-bold display-6">{{ vuln_stats.low }}</span>
-                            <span class="ms-2">Low</span>
-                        </div>
-                    </div>
+            <!-- Service Targets -->
+            {% if data.service_targets %}
+            <div id="section-services" class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-hdd-network text-warning me-2"></i>Service Targets
+                    <span class="badge bg-warning ms-2">{{ data.service_targets|length }}</span>
                 </div>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Web Targets -->
-        {% if data.web_targets %}
-        <div class="card mb-4">
-            <div class="card-header">
-                <i class="bi bi-globe text-cyan me-2"></i>Web Targets
-                <span class="badge bg-info ms-2">{{ data.web_targets|length }}</span>
-            </div>
-            <div class="card-body p-0">
-                <div class="accordion" id="webTargets">
-                    {% for wt in data.web_targets %}
-                    <div class="accordion-item bg-transparent border-secondary">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed bg-transparent text-light" type="button"
-                                data-bs-toggle="collapse" data-bs-target="#web-{{ loop.index }}">
-                                <i class="bi bi-link-45deg me-2 text-cyan"></i>
-                                {{ wt.target.url }}
-                                <span class="badge bg-secondary ms-2">{{ wt.target.service }}</span>
-                                {% if wt.vulnerabilities %}
-                                <span class="badge bg-danger ms-1">{{ wt.vulnerabilities|length }} vulns</span>
-                                {% endif %}
-                            </button>
-                        </h2>
-                        <div id="web-{{ loop.index }}" class="accordion-collapse collapse" data-bs-parent="#webTargets">
-                            <div class="accordion-body">
-                                <!-- Technologies -->
-                                {% if wt.technologies and wt.technologies.technologies %}
-                                <h6 class="text-cyan"><i class="bi bi-cpu me-1"></i>Technologies</h6>
-                                <div class="mb-3">
-                                    {% for tech in wt.technologies.technologies[:10] %}
-                                    <span class="badge bg-dark border border-secondary me-1 mb-1">{{ tech }}</span>
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-
-                                <!-- Directories -->
-                                {% if wt.directories %}
-                                <h6 class="text-cyan"><i class="bi bi-folder me-1"></i>Directories ({{
-                                    wt.directories|length }})</h6>
-                                <div class="table-responsive mb-3">
-                                    <table class="table table-sm table-dark table-striped">
-                                        <thead>
-                                            <tr>
-                                                <th>Path</th>
-                                                <th>Status</th>
-                                                <th>Type</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for d in wt.directories[:15] %}
-                                            <tr>
-                                                <td><code>{{ d.path }}</code></td>
-                                                <td>{{ d.status }}</td>
-                                                <td><span class="badge bg-secondary">{{ d.classification }}</span></td>
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                {% endif %}
-
-                                <!-- API Endpoints -->
-                                {% if wt.api_endpoints %}
-                                <h6 class="text-cyan"><i class="bi bi-braces me-1"></i>API Endpoints ({{
-                                    wt.api_endpoints|length }})</h6>
-                                <div class="table-responsive mb-3">
-                                    <table class="table table-sm table-dark table-striped">
-                                        <thead>
-                                            <tr>
-                                                <th>Endpoint</th>
-                                                <th>Status</th>
-                                                <th>Info</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for ep in wt.api_endpoints[:15] %}
-                                            <tr>
-                                                <td><code>{{ ep.endpoint }}</code></td>
-                                                <td><span
-                                                        class="badge {% if ep.status < 300 %}bg-success{% elif ep.status < 400 %}bg-warning{% else %}bg-danger{% endif %}">{{
-                                                        ep.status }}</span></td>
-                                                <td>{{ ep.info }}</td>
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                {% endif %}
-
-                                <!-- Vulnerabilities -->
-                                {% if wt.vulnerabilities %}
-                                <h6 class="text-danger"><i class="bi bi-bug me-1"></i>Vulnerabilities</h6>
-                                <div class="mb-3">
-                                    {% for v in wt.vulnerabilities[:10] %}
-                                    <div
-                                        class="alert alert-{{ 'danger' if v.severity in ['critical','high'] else 'warning' if v.severity == 'medium' else 'info' }} py-2 mb-2">
-                                        <strong>[{{ v.severity|upper }}]</strong> {{ v.description }}
-                                    </div>
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-
-                                <!-- Exploits -->
-                                {% if wt.exploits %}
-                                <h6 class="text-warning"><i class="bi bi-lightning me-1"></i>Exploits</h6>
-                                {% for e in wt.exploits[:5] %}
-                                <div class="exploit-item mb-2 p-2 rounded">
-                                    <div class="fw-bold d-flex align-items-center gap-2">
-                                        {{ e.title }}
-                                        {% if e.cve %}
-                                        <a href="https://nvd.nist.gov/vuln/detail/{{ e.cve }}" target="_blank"
-                                            class="badge bg-danger text-decoration-none" title="View on NVD">
-                                            <i class="bi bi-shield-exclamation me-1"></i>{{ e.cve }}
-                                        </a>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th>IP</th>
+                                    <th>Port</th>
+                                    <th>Service</th>
+                                    <th>Version</th>
+                                    <th>Exploits</th>
+                                    <th>CVEs</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for st in data.service_targets %}
+                                <tr>
+                                    <td><code>{{ st.target.ip }}</code></td>
+                                    <td>{{ st.target.port }}</td>
+                                    <td><span class="badge bg-secondary">{{ st.target.service }}</span></td>
+                                    <td>{{ st.target.version or '—' }}</td>
+                                    <td>
+                                        {% if st.exploits %}
+                                        <span class="badge bg-danger">{{ st.exploits|length }}</span>
+                                        {% else %}
+                                        <span class="text-muted">—</span>
                                         {% endif %}
-                                    </div>
-                                    <small class="text-muted">
-                                        Vector: {{ e.attack_vector }} |
-                                        Severity: <span
-                                            class="text-{{ 'danger' if e.severity in ['critical','high'] else 'warning' }}">{{
-                                            e.severity|upper }}</span>
-                                    </small>
-                                </div>
+                                    </td>
+                                    <td>
+                                        {% if st.exploits %}
+                                        {% for ex in st.exploits if ex.cve %}
+                                        <a href="https://nvd.nist.gov/vuln/detail/{{ ex.cve }}" target="_blank"
+                                            class="badge bg-danger text-decoration-none me-1 mb-1"
+                                            title="{{ ex.title }}">
+                                            {{ ex.cve }}
+                                        </a>
+                                        {% endfor %}
+                                        {% endif %}
+                                    </td>
+                                </tr>
                                 {% endfor %}
-                                {% endif %}
-                            </div>
-                        </div>
+                            </tbody>
+                        </table>
                     </div>
-                    {% endfor %}
                 </div>
             </div>
-        </div>
-        {% endif %}
+            {% endif %}
 
-        <!-- Service Targets -->
-        {% if data.service_targets %}
-        <div class="card mb-4">
-            <div class="card-header">
-                <i class="bi bi-hdd-network text-warning me-2"></i>Service Targets
-                <span class="badge bg-warning ms-2">{{ data.service_targets|length }}</span>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-dark table-striped mb-0">
-                        <thead>
-                            <tr>
-                                <th>IP</th>
-                                <th>Port</th>
-                                <th>Service</th>
-                                <th>Version</th>
-                                <th>Exploits</th>
-                                <th>CVEs</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for st in data.service_targets %}
-                            <tr>
-                                <td><code>{{ st.target.ip }}</code></td>
-                                <td>{{ st.target.port }}</td>
-                                <td><span class="badge bg-secondary">{{ st.target.service }}</span></td>
-                                <td>{{ st.target.version or '—' }}</td>
-                                <td>
-                                    {% if st.exploits %}
-                                    <span class="badge bg-danger">{{ st.exploits|length }}</span>
-                                    {% else %}
-                                    <span class="text-muted">—</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if st.exploits %}
-                                    {% for ex in st.exploits if ex.cve %}
-                                    <a href="https://nvd.nist.gov/vuln/detail/{{ ex.cve }}" target="_blank"
-                                        class="badge bg-danger text-decoration-none me-1 mb-1" title="{{ ex.title }}">
-                                        {{ ex.cve }}
-                                    </a>
-                                    {% endfor %}
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+            <!-- SQLi Targets (from Crawler) -->
+            {% if sqli_count > 0 %}
+            <div id="section-sqli" class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-database-fill-exclamation text-danger me-2"></i>SQL Injection Targets
+                    <span class="badge bg-danger ms-2">{{ sqli_count }}</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th>URL</th>
+                                    <th>Type</th>
+                                    <th>Params</th>
+                                    <th>Score</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for url, cdata in data.crawler.items() if data.crawler is mapping %}
+                                {% for sqli in cdata.potential_sqli|default([]) %}
+                                <tr>
+                                    <td><code class="text-break">{{ sqli.url }}</code></td>
+                                    <td><span class="badge bg-{{ 'danger' if sqli.type == 'form' else 'warning' }}">{{
+                                            sqli.type }}</span></td>
+                                    <td>{{ ', '.join(sqli.params|default(sqli.fields|default([]))) }}</td>
+                                    <td><span class="badge bg-danger">{{ sqli.sqli_score }}</span></td>
+                                </tr>
+                                {% endfor %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-        </div>
-        {% endif %}
+            {% endif %}
 
-        <!-- SQLi Targets (from Crawler) -->
-        {% if sqli_count > 0 %}
-        <div class="card mb-4">
-            <div class="card-header">
-                <i class="bi bi-database-fill-exclamation text-danger me-2"></i>SQL Injection Targets
-                <span class="badge bg-danger ms-2">{{ sqli_count }}</span>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-dark table-striped mb-0">
-                        <thead>
-                            <tr>
-                                <th>URL</th>
-                                <th>Type</th>
-                                <th>Params</th>
-                                <th>Score</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for url, cdata in data.crawler.items() if data.crawler is mapping %}
-                            {% for sqli in cdata.potential_sqli|default([]) %}
-                            <tr>
-                                <td><code class="text-break">{{ sqli.url }}</code></td>
-                                <td><span class="badge bg-{{ 'danger' if sqli.type == 'form' else 'warning' }}">{{
-                                        sqli.type }}</span></td>
-                                <td>{{ ', '.join(sqli.params|default(sqli.fields|default([]))) }}</td>
-                                <td><span class="badge bg-danger">{{ sqli.sqli_score }}</span></td>
-                            </tr>
-                            {% endfor %}
-                            {% endfor %}
-                        </tbody>
-                    </table>
+            <!-- Brute Force Results -->
+            <div id="section-brute" class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-key-fill text-warning me-2"></i>Brute Force Results
+                    {% if brute_results %}
+                    <span class="badge bg-warning ms-2">{{ brute_results|length }} attacks</span>
+                    {% if brute_success_count > 0 %}
+                    <span class="badge bg-success ms-1">{{ brute_success_count }} hit{{ 's' if brute_success_count != 1
+                        }}</span>
+                    {% endif %}
+                    {% endif %}
+                </div>
+                <div class="card-body{% if brute_results %} p-0{% endif %}">
+                    {% if brute_results %}
+                    <div class="table-responsive">
+                        <table class="table table-dark table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Attack</th>
+                                    <th>Status</th>
+                                    <th>Detail</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for r in brute_results %}
+                                <tr>
+                                    <td>{{ r.opportunity[:70] }}</td>
+                                    <td>
+                                        {% if r.error is defined %}
+                                        <span class="badge bg-danger">FAILED</span>
+                                        {% elif r.result is defined and r.result.success %}
+                                        <span class="badge bg-success">SUCCESS</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">NO FINDINGS</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if r.error is defined %}
+                                        <span class="text-danger">{{ r.error[:50] }}</span>
+                                        {% elif r.result is defined and r.result.success %}
+                                        <span class="brute-creds">{{ r.result.message[:60] }}</span>
+                                        {% elif r.result is defined %}
+                                        <span class="text-muted">{{ r.result.message[:60] if r.result.message else 'No
+                                            results' }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="brute-empty">
+                        <i class="bi bi-shield-lock" style="font-size: 2rem; opacity: 0.3;"></i>
+                        <p class="mt-2 mb-0">No brute force attacks have been run for this scan.</p>
+                        <small>Run the Brute Force module from the main menu to populate results here.</small>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
-        </div>
-        {% endif %}
 
-        <!-- Brute Force Results -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <i class="bi bi-key-fill text-warning me-2"></i>Brute Force Results
-                {% if brute_results %}
-                <span class="badge bg-warning ms-2">{{ brute_results|length }} attacks</span>
-                {% if brute_success_count > 0 %}
-                <span class="badge bg-success ms-1">{{ brute_success_count }} hit{{ 's' if brute_success_count != 1
-                    }}</span>
-                {% endif %}
-                {% endif %}
-            </div>
-            <div class="card-body{% if brute_results %} p-0{% endif %}">
-                {% if brute_results %}
-                <div class="table-responsive">
-                    <table class="table table-dark table-striped mb-0">
-                        <thead>
-                            <tr>
-                                <th>Attack</th>
-                                <th>Status</th>
-                                <th>Detail</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for r in brute_results %}
-                            <tr>
-                                <td>{{ r.opportunity[:70] }}</td>
-                                <td>
-                                    {% if r.error is defined %}
-                                    <span class="badge bg-danger">FAILED</span>
-                                    {% elif r.result is defined and r.result.success %}
-                                    <span class="badge bg-success">SUCCESS</span>
-                                    {% else %}
-                                    <span class="badge bg-secondary">NO FINDINGS</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if r.error is defined %}
-                                    <span class="text-danger">{{ r.error[:50] }}</span>
-                                    {% elif r.result is defined and r.result.success %}
-                                    <span class="brute-creds">{{ r.result.message[:60] }}</span>
-                                    {% elif r.result is defined %}
-                                    <span class="text-muted">{{ r.result.message[:60] if r.result.message else 'No
-                                        results' }}</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+            <!-- IP Analyses -->
+            {% if data.ip_analyses %}
+            <div id="section-ips" class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-pc-display text-success me-2"></i>IP Analysis
+                    <span class="badge bg-success ms-2">{{ data.ip_analyses|length }}</span>
                 </div>
-                {% else %}
-                <div class="brute-empty">
-                    <i class="bi bi-shield-lock" style="font-size: 2rem; opacity: 0.3;"></i>
-                    <p class="mt-2 mb-0">No brute force attacks have been run for this scan.</p>
-                    <small>Run the Brute Force module from the main menu to populate results here.</small>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th>IP</th>
+                                    <th>Location</th>
+                                    <th>Open Ports</th>
+                                    <th>Services</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for ip_data in data.ip_analyses %}
+                                {% set info = ip_data.ip_info|default({}) %}
+                                {% set geo = info.geolocation|default({}) %}
+                                <tr>
+                                    <td><code>{{ info.ip|default('N/A') }}</code></td>
+                                    <td>{{ [geo.city, geo.region, geo.country]|select|join(', ') or '—' }}</td>
+                                    <td><span class="badge bg-info">{{ ip_data.open_ports_count|default(0) }}</span>
+                                    </td>
+                                    <td>{{ ip_data.services_found|default([])|reject('equalto','no_open_ports')|join(',
+                                        ')
+                                        or '—' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                {% endif %}
             </div>
-        </div>
+            {% endif %}
 
-        <!-- IP Analyses -->
-        {% if data.ip_analyses %}
-        <div class="card mb-4">
-            <div class="card-header">
-                <i class="bi bi-pc-display text-success me-2"></i>IP Analysis
-                <span class="badge bg-success ms-2">{{ data.ip_analyses|length }}</span>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-dark table-striped mb-0">
-                        <thead>
-                            <tr>
-                                <th>IP</th>
-                                <th>Location</th>
-                                <th>Open Ports</th>
-                                <th>Services</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for ip_data in data.ip_analyses %}
-                            {% set info = ip_data.ip_info|default({}) %}
-                            {% set geo = info.geolocation|default({}) %}
-                            <tr>
-                                <td><code>{{ info.ip|default('N/A') }}</code></td>
-                                <td>{{ [geo.city, geo.region, geo.country]|select|join(', ') or '—' }}</td>
-                                <td><span class="badge bg-info">{{ ip_data.open_ports_count|default(0) }}</span></td>
-                                <td>{{ ip_data.services_found|default([])|reject('equalto','no_open_ports')|join(', ')
-                                    or '—' }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+            <!-- Ollama AI Analysis -->
+            {% if data.ollama_analysis %}
+            <div id="section-ai" class="card mb-4 border-purple">
+                <div class="card-header bg-purple-subtle">
+                    <i class="bi bi-robot text-purple me-2"></i>AI-Powered Analysis (Ollama)
+                </div>
+                <div class="card-body">
+                    <pre class="mb-0 text-light"
+                        style="white-space:pre-wrap;font-size:0.9rem;">{{ data.ollama_analysis }}</pre>
                 </div>
             </div>
+            {% endif %}
         </div>
-        {% endif %}
-
-        <!-- Ollama AI Analysis -->
-        {% if data.ollama_analysis %}
-        <div class="card mb-4 border-purple">
-            <div class="card-header bg-purple-subtle">
-                <i class="bi bi-robot text-purple me-2"></i>AI-Powered Analysis (Ollama)
-            </div>
-            <div class="card-body">
-                <pre class="mb-0 text-light"
-                    style="white-space:pre-wrap;font-size:0.9rem;">{{ data.ollama_analysis }}</pre>
-            </div>
-        </div>
-        {% endif %}
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Simple scrollspy: highlight active sidebar link based on scroll position
+        (function () {
+            const links = document.querySelectorAll('.sidebar-nav .nav-link');
+            const sections = [];
+            links.forEach(link => {
+                const id = link.getAttribute('href');
+                if (id && id.startsWith('#')) {
+                    const el = document.querySelector(id);
+                    if (el) sections.push({ el, link });
+                }
+            });
+            if (!sections.length) return;
+
+            function updateActive() {
+                let current = sections[0];
+                for (const s of sections) {
+                    if (s.el.getBoundingClientRect().top <= 120) current = s;
+                }
+                links.forEach(l => l.classList.remove('active'));
+                current.link.classList.add('active');
+            }
+            window.addEventListener('scroll', updateActive, { passive: true });
+            updateActive();
+        })();
+    </script>
 </body>
 
 </html>

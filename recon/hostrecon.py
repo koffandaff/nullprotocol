@@ -178,13 +178,19 @@ def export_pdf(domain_dir):
     crawler_data = data.get('crawler', {})
     sqli_count = sum(len(c.get('potential_sqli', [])) for c in crawler_data.values()) if isinstance(crawler_data, dict) else 0
 
+    # Brute force results for PDF
+    brute_results = load_brute_results(domain_dir)
+    brute_success_count = sum(1 for r in brute_results if r.get('result', {}).get('success')) if brute_results else 0
+
     # Render the printable template
     html_content = render_template('report_print.html',
                                    data=data,
                                    report_txt=report_txt,
                                    vuln_stats=vuln_stats,
                                    exploit_count=exploit_count,
-                                   sqli_count=sqli_count)
+                                   sqli_count=sqli_count,
+                                   brute_results=brute_results,
+                                   brute_success_count=brute_success_count)
 
     # Try wkhtmltopdf, else return HTML for browser print
     pdf_path = os.path.join(RESULTS_DIR, domain_dir, 'FinalReport', 'report.pdf')
