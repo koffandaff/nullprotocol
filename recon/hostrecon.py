@@ -17,7 +17,19 @@ app = Flask(__name__,
             template_folder=os.path.join(os.path.dirname(__file__), 'templates'),
             static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 
-RESULTS_DIR = os.path.join(os.path.dirname(__file__), '..', 'results')
+# Scan results are saved relative to CWD (e.g. recon/results/<domain>/FinalReport/)
+# Try CWD-relative first, then fallback to script-relative paths
+_cwd_results = os.path.join(os.getcwd(), 'results')
+_script_results = os.path.join(os.path.dirname(__file__), 'results')
+_parent_results = os.path.join(os.path.dirname(__file__), '..', 'results')
+
+# Pick whichever path actually exists
+if os.path.isdir(_cwd_results):
+    RESULTS_DIR = _cwd_results
+elif os.path.isdir(_script_results):
+    RESULTS_DIR = _script_results
+else:
+    RESULTS_DIR = _parent_results
 
 
 def get_all_scans():

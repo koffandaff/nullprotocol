@@ -29,9 +29,9 @@ def IpMasscan(ip_list, domain):
             with open(json_path, 'r') as f:
                 data = f.read()
                 ips[ip] = data
-            success_msg(f"{ip} -- V ports found")
+            success_msg(f"{ip} -- ports found")
         else:
-            warning_msg(f"{ip} -- V no open ports detected")
+            warning_msg(f"{ip} -- no open ports detected")
             if os.path.exists(json_path):
                 os.remove(json_path)
 

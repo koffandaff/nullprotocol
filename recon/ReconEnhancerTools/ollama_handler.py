@@ -13,9 +13,21 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from utility import console, status_msg, success_msg, error_msg, warning_msg, info_msg
 
 OLLAMA_HOSTS = [
-    "http://10.0.2.2:11434",   # WSL default gateway (Windows host)
-    "http://localhost:11434",   # Native / same-machine fallback
+    "http://localhost:11434",           # Native / same-machine
+    "http://127.0.0.1:11434",          # Explicit IPv4 loopback
+    "http://host.docker.internal:11434", # Docker / WSL2 host alias
+    "http://10.0.2.2:11434",           # VirtualBox-style NAT (WSL1)
 ]
+
+# Also try the WSL2 default gateway dynamically
+try:
+    import subprocess as _sp
+    _gw = _sp.check_output("ip route show default 2>/dev/null | awk '{print $3}'",
+                           shell=True, text=True).strip()
+    if _gw:
+        OLLAMA_HOSTS.insert(2, f"http://{_gw}:11434")
+except Exception:
+    pass
 
 OLLAMA_BASE = None  # Will be set by is_ollama_available()
 
@@ -207,6 +219,6 @@ def interactive_ollama_check():
         else:
             warning_msg("Ollama is running but no models found. Run: ollama pull llama3")
     else:
-        info_msg("Ollama not detected on localhost:11434. Skipping AI analysis.")
+        info_msg("Ollama not detected (tried multiple hosts). Skipping AI analysis.")
     
     return False, None

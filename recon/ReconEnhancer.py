@@ -2,10 +2,15 @@
 import os
 import json
 import time
+import warnings
 from datetime import datetime
 import concurrent.futures
 import re
 from collections import Counter
+
+# Suppress InsecureRequestWarning globally at the process level
+# This catches warnings from ALL sources (urllib3, requests.packages.urllib3, etc.)
+warnings.filterwarnings('ignore', message='Unverified HTTPS request')
 
 # Tool modules
 from ReconEnhancerTools.web_scanner import WebScanner
