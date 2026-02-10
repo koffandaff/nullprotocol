@@ -25,11 +25,12 @@ def IpMasscan(ip_list, domain):
             File = os.path.join(Dir, Name)
 
             try:
-                cmd = f'sudo masscan --top-ports 1000 {ip} --open --rate=25000 --wait 0 -oJ {File}.json'
+                # Rate 5000 is WSL-safe; 25000 overwhelms the virtual NIC
+                cmd = f'sudo masscan --top-ports 500 {ip} --open --rate=5000 --wait 2 -oJ {File}.json'
                 result = subprocess.run(
                     cmd, shell=True,
                     capture_output=True, text=True,
-                    timeout=120
+                    timeout=180
                 )
 
                 json_path = f'{File}.json'
@@ -37,17 +38,21 @@ def IpMasscan(ip_list, domain):
                     with open(json_path, 'r') as f:
                         data = f.read()
                         ips[ip] = data
-                    success_msg(f"{ip} — ports found")
+                    success_msg(f"{ip} -- ports found")
                 else:
-                    warning_msg(f"{ip} — no open ports detected")
+                    warning_msg(f"{ip} -- no open ports detected")
+                    # Show stderr if masscan printed an error
+                    if result.stderr and result.stderr.strip():
+                        info_msg(f"masscan stderr: {result.stderr.strip()[:200]}")
                     # Clean up empty files
                     if os.path.exists(json_path):
                         os.remove(json_path)
 
             except subprocess.TimeoutExpired:
-                error_msg(f"{ip} — masscan timed out")
+                error_msg(f"{ip} -- masscan timed out (180s)")
+                info_msg("Tip: try running 'sudo masscan --top-ports 100 <IP> --rate=1000' manually to test")
             except Exception as e:
-                error_msg(f"{ip} — masscan error: {e}")
+                error_msg(f"{ip} -- masscan error: {e}")
 
             progress.update(task, advance=1)
 
