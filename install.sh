@@ -51,20 +51,28 @@ sudo apt install -y \
 echo "[4/7] Installing attack & fuzzing tools..."
 sudo apt install -y hydra sqlmap
 
-# Handle wkhtmltopdf installation (missing candidate fix for Kali/Ubuntu)
+# Handle wkhtmltopdf installation (missing candidate fix for Kali/Debian 12)
 if ! command -v wkhtmltopdf &> /dev/null; then
     echo "  → Attempting to install wkhtmltopdf..."
-    if ! sudo apt install -y wkhtmltopdf 2>/dev/null; then
-        echo "  → [!] wkhtmltopdf not in repositories. Attempting manual download..."
-        # Download the deb based on architecture (Assuming amd64 for WSL)
-        # We use the focal/bullseye version as it's the most compatible
-        DEB_URL="https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox_0.12.6-1.focal_amd64.deb"
+    # Try apt first
+    if sudo apt install -y wkhtmltopdf 2>/dev/null; then
+        echo "  → wkhtmltopdf installed via apt"
+    else
+        echo "  → [!] wkhtmltopdf not in repositories. Attempting manual download for Kali/Debian 12..."
+        # Kali Rolling is based on Debian Testing/Bookworm, which dropped libssl1.1
+        # We need the package built for Bookworm (Debian 12)
+        DEB_URL="https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-3/wkhtmltox_0.12.6.1-3.bookworm_amd64.deb"
+        
         wget -q $DEB_URL -O /tmp/wkhtmltox.deb
-        sudo apt install -y /tmp/wkhtmltox.deb || {
-            echo "  → [!] Manual install failed. Attempting to fix dependencies..."
-            sudo apt --fix-broken install -y
-        }
-        rm /tmp/wkhtmltox.deb
+        if [ $? -eq 0 ]; then
+            sudo apt install -y /tmp/wkhtmltox.deb || {
+                echo "  → [!] Manual install failed. Fixing dependencies..."
+                sudo apt --fix-broken install -y
+            }
+            rm /tmp/wkhtmltox.deb
+        else
+            echo "  → [!] Failed to download wkhtmltopdf package."
+        fi
     fi
 fi
 

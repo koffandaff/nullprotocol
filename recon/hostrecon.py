@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HostRecon — Professional Web Reporting Dashboard
+HostRecon -- Professional Web Reporting Dashboard
 Serves scan results on port 5000 with a Bootstrap 5 dark-themed UI.
 Supports PDF export via browser print or wkhtmltopdf.
 """
@@ -73,7 +73,7 @@ def load_report_txt(domain_dir):
 
 @app.route('/')
 def index():
-    """Dashboard — list all scans."""
+    """Dashboard -- list all scans."""
     scans = get_all_scans()
     return render_template('index.html', scans=scans)
 
@@ -187,15 +187,15 @@ def raw_report(domain_dir):
 
 def start_hostrecon(port=5000):
     """Launch the HostRecon dashboard."""
-    print(f"\n  🌐 HostRecon Dashboard starting on http://localhost:{port}")
-    print(f"  📁 Serving results from: {os.path.abspath(RESULTS_DIR)}")
-    print(f"  🔒 Press Ctrl+C to stop\n")
+    print(f"\n  HostRecon Dashboard starting on http://localhost:{port}")
+    print(f"  Serving results from: {os.path.abspath(RESULTS_DIR)}")
+    print(f"  Press Ctrl+C to stop\n")
     app.run(host='0.0.0.0', port=port, debug=False)
 
 
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser(description='HostRecon — Web Reporting Dashboard')
+    parser = argparse.ArgumentParser(description='HostRecon -- Web Reporting Dashboard')
     parser.add_argument('-p', '--port', type=int, default=5000, help='Port to serve on')
     args = parser.parse_args()
     start_hostrecon(args.port)

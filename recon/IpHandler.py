@@ -15,7 +15,7 @@ def IpMasscan(ip_list, domain):
     ips = {}
     Dir = Create_Domain_Directory(domain, 'Ip')
 
-    section_header("MASSCAN — Fast Port Discovery", "🚀")
+    section_header("MASSCAN -- Fast Port Discovery")
 
     with get_progress_bar() as progress:
         task = progress.add_task("Scanning IPs", total=len(ip_list))
@@ -76,7 +76,7 @@ def IpHandler(Ip, domain=None, Subdomain_File=None):
     if not domain:
         domain = Ip[0] if Ip else "unknown_target"
 
-    section_header("IP PIPELINE", "🔗")
+    section_header("IP PIPELINE")
 
     # ── Step 1: Validate IPs ──
     status_msg("Validating IP addresses...")
@@ -96,7 +96,7 @@ def IpHandler(Ip, domain=None, Subdomain_File=None):
     rows = []
     alive_ips = []
     for info in enriched:
-        alive_str = "[green]✓ ALIVE[/green]" if info['alive'] else "[red]✗ DOWN[/red]"
+        alive_str = "[green][+] ALIVE[/green]" if info['alive'] else "[red][x] DOWN[/red]"
         rows.append((info['ip'], info['hostname'], alive_str))
         if info['alive']:
             alive_ips.append(info['ip'])
@@ -110,7 +110,7 @@ def IpHandler(Ip, domain=None, Subdomain_File=None):
     # Use alive IPs if any, otherwise fall back to all valid IPs
     scan_ips = alive_ips if alive_ips else valid_ips
     if not alive_ips:
-        warning_msg("No hosts responded to ping — scanning all valid IPs anyway (may be filtered)")
+        warning_msg("No hosts responded to ping -- scanning all valid IPs anyway (may be filtered)")
 
     # ── Step 3: Masscan ──
     IpData = IpMasscan(scan_ips, domain)
@@ -119,7 +119,7 @@ def IpHandler(Ip, domain=None, Subdomain_File=None):
         warning_msg("Masscan found no open ports. Proceeding with Nmap for deeper scan...")
 
     # ── Step 4: Nmap ──
-    section_header("NMAP — Deep Service & OS Discovery", "🔬")
+    section_header("NMAP -- Deep Service & OS Discovery")
     try:
         Nmap_Result = IpNmapHandler.main(IpData['ip'], IpData['dir'])
         success_msg(f"Nmap results saved to: {Nmap_Result['File_Location']}")
@@ -135,7 +135,7 @@ def IpHandler(Ip, domain=None, Subdomain_File=None):
         warning_msg("Using fallback empty Nmap data")
 
     # ── Step 5: ReconEnhancer ──
-    section_header("RECON ENHANCER — Deep Analysis", "🧠")
+    section_header("RECON ENHANCER -- Deep Analysis")
 
     # If no subdomain file, create a temporary one
     if not Subdomain_File:

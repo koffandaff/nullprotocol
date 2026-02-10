@@ -608,7 +608,7 @@ class ReconEnhancer:
 
     def run_comprehensive_scan(self):
         """Run comprehensive reconnaissance scan with Ollama & Crawler integration."""
-        section_header(f"COMPREHENSIVE SCAN — {self.domain}", "🧠")
+        section_header(f"COMPREHENSIVE SCAN -- {self.domain}")
         
         start_time = time.time()
         
@@ -627,7 +627,7 @@ class ReconEnhancer:
         }
         
         # 1. Extract all targets
-        section_header("Step 1/7 — Extracting Targets", "📋")
+        section_header("Step 1/7 -- Extracting Targets")
         targets = self.extract_all_targets()
         
         web_targets = [t for t in targets if t['type'] == 'web']
@@ -638,7 +638,7 @@ class ReconEnhancer:
         
         # 2. Scan web targets
         if web_targets:
-            section_header(f"Step 2/7 — Scanning {len(web_targets)} Web Targets", "🌐")
+            section_header(f"Step 2/7 -- Scanning {len(web_targets)} Web Targets")
             self.write_section_header("WEB TARGETS")
             
             with get_progress_bar() as progress:
@@ -658,7 +658,7 @@ class ReconEnhancer:
         
         # 3. Analyze service targets
         if service_targets:
-            section_header(f"Step 3/7 — Analyzing {len(service_targets)} Services", "🔧")
+            section_header(f"Step 3/7 -- Analyzing {len(service_targets)} Services")
             self.write_section_header("SERVICE TARGETS")
             
             with get_progress_bar() as progress:
@@ -677,7 +677,7 @@ class ReconEnhancer:
                 f.write("No service targets found for scanning.\n")
         
         # 4. Analyze IP addresses
-        section_header(f"Step 4/7 — Analyzing {len(self.ips)} IPs", "🔬")
+        section_header(f"Step 4/7 -- Analyzing {len(self.ips)} IPs")
         self.write_section_header("IP ANALYSIS")
         
         ip_analyses = []
@@ -698,8 +698,8 @@ class ReconEnhancer:
         
         all_results['ip_analyses'] = ip_analyses
 
-        # 5. Crawler — Find SQLi targets on web services
-        section_header("Step 5/7 — Crawling for SQLi Targets", "🕷️")
+        # 5. Crawler -- Find SQLi targets on web services
+        section_header("Step 5/7 -- Crawling for SQLi Targets")
         all_results['crawler'] = {}
         if web_targets:
             try:
@@ -727,7 +727,7 @@ class ReconEnhancer:
             info_msg("No web targets to crawl")
 
         # 6. Ollama AI Analysis
-        section_header("Step 6/7 — AI-Powered Analysis", "🤖")
+        section_header("Step 6/7 -- AI-Powered Analysis")
         all_results['ollama_analysis'] = None
         if self.use_ollama and self.ollama_model:
             try:
@@ -758,10 +758,10 @@ class ReconEnhancer:
             except Exception as e:
                 warning_msg(f"Ollama analysis failed: {e}")
         else:
-            info_msg("Ollama not enabled — skipping AI analysis")
+            info_msg("Ollama not enabled -- skipping AI analysis")
         
         # 7. Generate comprehensive summary
-        section_header("Step 7/7 — Generating Summary", "📊")
+        section_header("Step 7/7 -- Generating Summary")
         elapsed = time.time() - start_time
         
         self.write_section_header("SCAN SUMMARY")
@@ -818,10 +818,10 @@ class ReconEnhancer:
             ("Open Ports", str(total_open_ports)),
             ("Vulnerabilities", str(total_vulns)),
             ("Exploits Found", str(total_exploits)),
-            ("Ollama Analysis", "✓" if all_results.get('ollama_analysis') else "—"),
+            ("Ollama Analysis", "Yes" if all_results.get('ollama_analysis') else "No"),
         ]
         make_table(
-            "🏁 SCAN COMPLETE",
+            "SCAN COMPLETE",
             [("Metric", "cyan"), ("Value", "green")],
             summary_rows
         )
@@ -832,7 +832,7 @@ class ReconEnhancer:
 
 def main(domain, subdomain_file, nmap_json, ip_input):
     """Main function with Ollama integration."""
-    section_header("RECON ENHANCER v2.0", "🧠")
+    section_header("RECON ENHANCER v2.0")
     info_msg(f"Target: {domain}")
     
     # Check required files

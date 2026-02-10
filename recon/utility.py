@@ -36,34 +36,35 @@ def banner():
     console.print("[bold white]       Dhruvil | github.com/koffandaff       [/bold white]")
     console.print(f"[bold cyan]{'='*60}[/bold cyan]\n")
 
-def section_header(title, icon="🔍"):
+def section_header(title, icon=""):
     """Print a styled section header."""
     console.print()
+    label = f"  {icon}  {title}" if icon else f"  {title}"
     console.print(Panel(
-        f"  {icon}  {title}",
+        label,
         border_style="bright_cyan",
         style="bold white"
     ))
 
 def status_msg(msg, style="green"):
     """Print a status message."""
-    console.print(f"  [bold {style}]►[/bold {style}] {msg}")
+    console.print(f"  [bold {style}]>[/bold {style}] {msg}")
 
 def error_msg(msg):
     """Print an error message."""
-    console.print(f"  [bold red]✗[/bold red] {msg}")
+    console.print(f"  [bold red][x][/bold red] {msg}")
 
 def success_msg(msg):
     """Print a success message."""
-    console.print(f"  [bold green]✓[/bold green] {msg}")
+    console.print(f"  [bold green][+][/bold green] {msg}")
 
 def warning_msg(msg):
     """Print a warning message."""
-    console.print(f"  [bold yellow]⚠[/bold yellow] {msg}")
+    console.print(f"  [bold yellow][!][/bold yellow] {msg}")
 
 def info_msg(msg):
     """Print an info message."""
-    console.print(f"  [dim]ℹ {msg}[/dim]")
+    console.print(f"  [dim][i] {msg}[/dim]")
 
 def get_progress_bar():
     """Return a pre-configured rich progress bar."""

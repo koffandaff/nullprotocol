@@ -56,7 +56,7 @@ def load_recon_data(results_dir):
 
     console.print()
     for i, scan in enumerate(scans, 1):
-        console.print(f"  [cyan]{i}[/cyan] → {scan['domain']} ({scan['timestamp'][:19]})")
+        console.print(f"  [cyan]{i}[/cyan] -- {scan['domain']} ({scan['timestamp'][:19]})")
     console.print()
 
     choice = Prompt.ask("  [bold white]Select scan[/bold white]", default="1")
@@ -183,7 +183,7 @@ def identify_attack_opportunities(data):
 
 def main():
     banner()
-    section_header("BRUTE FORCE MODULE", "⚔️")
+    section_header("BRUTE FORCE MODULE")
     warning_msg("This module launches active attacks. Use only with authorization!")
     console.print()
 
@@ -193,7 +193,7 @@ def main():
     if not data:
         return
 
-    section_header(f"Attack Planning — {domain}", "🎯")
+    section_header(f"Attack Planning -- {domain}")
 
     # Identify opportunities
     opportunities = identify_attack_opportunities(data)
@@ -222,9 +222,9 @@ def main():
 
     console.print()
     console.print("  [bold white]Options:[/bold white]")
-    console.print("    [cyan]a[/cyan] → Run ALL attacks")
-    console.print("    [cyan]1,3,5[/cyan] → Run specific attacks by number")
-    console.print("    [cyan]q[/cyan] → Quit")
+    console.print("    [cyan]a[/cyan] --> Run ALL attacks")
+    console.print("    [cyan]1,3,5[/cyan] --> Run specific attacks by number")
+    console.print("    [cyan]q[/cyan] --> Quit")
     console.print()
 
     selection = Prompt.ask("  [bold white]Select attacks[/bold white]", default="q")
@@ -258,7 +258,7 @@ def main():
         return
 
     # Execute attacks
-    section_header("Executing Attacks", "🔥")
+    section_header("Executing Attacks")
     output_dir = os.path.join(results_dir, domain, 'BruteForce')
     os.makedirs(output_dir, exist_ok=True)
 
@@ -293,4 +293,4 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        console.print("\n  [bold red]⏹  Attacks aborted by user.[/bold red]")
+        console.print("\n  [bold red]Attacks aborted by user.[/bold red]")

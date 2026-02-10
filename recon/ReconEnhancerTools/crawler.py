@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Crawler Tool — Crawls a website to find pages with parameters
+Crawler Tool -- Crawls a website to find pages with parameters
 susceptible to SQL injection (for use with SQLMap).
 """
 
@@ -8,8 +8,12 @@ import requests
 import re
 import os
 import sys
+import urllib3
 from urllib.parse import urlparse, urljoin, parse_qs
 from collections import deque
+
+# Suppress InsecureRequestWarning from verify=False requests
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from utility import console, status_msg, success_msg, error_msg, warning_msg, info_msg, get_progress_bar

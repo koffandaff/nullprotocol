@@ -7,6 +7,10 @@ from urllib.parse import urlparse
 import concurrent.futures
 import time
 import sys
+import urllib3
+
+# Suppress InsecureRequestWarning from verify=False requests
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from utility import console, status_msg, success_msg, error_msg, warning_msg, info_msg, get_progress_bar, make_table
@@ -319,7 +323,7 @@ class WebScanner:
         """Create a human-readable info string for discovered endpoints."""
         if response.status_code in [301, 302]:
             location = response.headers.get('Location', 'unknown')
-            return f"Redirects → {location}"
+            return f"Redirects -> {location}"
 
         if 'json' in content_type:
             try:
@@ -414,7 +418,7 @@ class WebScanner:
                             'response_length': len(response.text)
                         })
 
-                        icon = {'critical': '🔴', 'high': '🟠', 'medium': '🟡', 'low': '🔵', 'info': '⚪'}.get(severity, '⚪')
+                        icon = {'critical': '[!!]', 'high': '[!]', 'medium': '[~]', 'low': '[-]', 'info': '[.]'}.get(severity, '[.]')
                         f.write(f"{icon} [{severity.upper()}] {check_name}: {full_url}\n")
 
                 except Exception:
@@ -438,9 +442,9 @@ class WebScanner:
                 for header, (message, sev) in security_checks.items():
                     if header not in headers:
                         missing.append(message)
-                        f.write(f"  ✗ {message}\n")
+                        f.write(f"  [x] {message}\n")
                     else:
-                        f.write(f"  ✓ {header} present\n")
+                        f.write(f"  [+] {header} present\n")
 
                 if missing:
                     findings.append({

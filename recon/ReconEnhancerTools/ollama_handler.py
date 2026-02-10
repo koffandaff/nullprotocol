@@ -12,16 +12,27 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from utility import console, status_msg, success_msg, error_msg, warning_msg, info_msg
 
-OLLAMA_BASE = "http://localhost:11434"
+OLLAMA_HOSTS = [
+    "http://10.0.2.2:11434",   # WSL default gateway (Windows host)
+    "http://localhost:11434",   # Native / same-machine fallback
+]
+
+OLLAMA_BASE = None  # Will be set by is_ollama_available()
 
 
 def is_ollama_available():
-    """Check if Ollama is running on the default port."""
-    try:
-        resp = requests.get(f"{OLLAMA_BASE}/api/tags", timeout=3)
-        return resp.status_code == 200
-    except Exception:
-        return False
+    """Check if Ollama is reachable. Tries WSL-to-Windows host IP first, then localhost."""
+    global OLLAMA_BASE
+    for host in OLLAMA_HOSTS:
+        try:
+            resp = requests.get(f"{host}/api/tags", timeout=3)
+            if resp.status_code == 200:
+                OLLAMA_BASE = host
+                info_msg(f"Ollama detected at {host}")
+                return True
+        except Exception:
+            continue
+    return False
 
 
 def get_available_models():
@@ -179,7 +190,7 @@ def interactive_ollama_check():
                 
                 console.print()
                 for i, m in enumerate(models, 1):
-                    console.print(f"    [cyan]{i}[/cyan] → {m}")
+                    console.print(f"    [cyan]{i}[/cyan] -- {m}")
                 console.print()
                 
                 choice = Prompt.ask(

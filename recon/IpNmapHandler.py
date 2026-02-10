@@ -161,7 +161,7 @@ class FastNmapHandler:
                 f.write("Detected Operating Systems:\n")
                 f.write("-" * 30 + "\n")
                 for match in data['osMatches']:
-                    f.write(f"  → {match['name']} (Confidence: {match['accuracy']}%)\n")
+                    f.write(f"  - {match['name']} (Confidence: {match['accuracy']}%)\n")
             else:
                 f.write("No OS information detected\n")
     
@@ -182,7 +182,7 @@ class FastNmapHandler:
             self.results['osDiscovery'][ip] = result['os']
             
             scanTime = time.time() - startTime
-            print(f"  ✓ {ip} scanned in {scanTime:.1f}s")
+            print(f"  [+] {ip} scanned in {scanTime:.1f}s")
         
         return result
     
