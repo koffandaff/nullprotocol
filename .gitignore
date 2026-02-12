@@ -19,6 +19,9 @@ recon/results/
 *.txt
 !requirements.txt
 !README.md
+!marketing/tsconfig.json
+!marketing/package.json
+!marketing/package-lock.json
 
 # --- OS Specific ---
 .DS_Store
