@@ -58,6 +58,11 @@ if ! command -v msfconsole &> /dev/null; then
     curl https://raw.githubusercontent.com/rapid7/metasploit-omnibus/master/config/templates/metasploit-framework-wrappers/msfupdate.erb > /tmp/msfinstall
     chmod 755 /tmp/msfinstall
     sudo /tmp/msfinstall
+    # Initialize database non-interactively
+    if command -v msfdb &> /dev/null; then
+        echo "  → Initializing Metasploit Database..."
+        sudo msfdb init
+    fi
 else
     echo "  → Metasploit already installed"
 fi

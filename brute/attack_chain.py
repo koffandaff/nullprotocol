@@ -674,7 +674,7 @@ def run_metasploit_scan(opportunity, output_dir):
         error_msg("msfconsole not found in PATH! Cannot execute scan.")
         return {'success': False, 'message': 'msfconsole not found. Script generated.'}
         
-    cmd = f"msfconsole -r {rc_file}"
+    cmd = f"msfconsole -q -r {rc_file}"
     output_file = os.path.join(output_dir, f'metasploit_scan_{target_ip}.txt')
     
     # 15 minutes timeout
