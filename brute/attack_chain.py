@@ -12,6 +12,7 @@ import json
 import re
 import time
 import threading
+import shutil
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'recon'))
 from utility import status_msg, success_msg, error_msg, warning_msg, info_msg, console
@@ -627,17 +628,56 @@ def hping3_dos(opportunity, output_dir):
         
     # Construct command
     # hping3 requires root privileges usually
-    # We use 'timeout' to stop the flood after 30s
+    # We use 'timeout' to stop the flood after 60s
+    # -d 120: Send 120 byte data size (heavier packet)
     
-    cmd = (f'sudo timeout 30s hping3 {flags} '
+    cmd = (f'sudo timeout 60s hping3 {flags} '
            f'-p {port} --flood '
+           f'-d 120 '
            f'{ip} '
            f'2>&1')
 
     # Expected exit code 124 for timeout command is normal
-    result = run_tool_live(cmd, timeout=40, output_file=output_file, label=f"hping3 {mode.upper()}")
+    result = run_tool_live(cmd, timeout=70, output_file=output_file, label=f"hping3 {mode.upper()}")
     
-    result['message'] = "DoS Stress Test Completed (30s duration)"
+    result['message'] = "DoS Stress Test Completed (60s duration, 120b packets)"
     result['success'] = True # Always check logs
     
+    return result
+
+
+# ─── METASPLOIT AUTOMATION ────────────────────────────────────
+
+def run_metasploit_scan(opportunity, output_dir):
+    """
+    Generates and runs a Metasploit resource script.
+    Wrapper to match the (opportunity, output_dir) signature.
+    """
+    target_ip = opportunity.get('ip')
+    open_ports = opportunity.get('extra_data', [])
+    
+    try:
+        from .MetasploitHandler import MetasploitHandler
+    except ImportError:
+        # Fallback for direct execution
+        sys.path.append(os.path.dirname(__file__))
+        from MetasploitHandler import MetasploitHandler
+        
+    info_msg(f"Initializing Metasploit Handler for {target_ip}...")
+    handler = MetasploitHandler()
+    rc_file = handler.generate_resource_script(target_ip, open_ports)
+    
+    console.print(f"[bold blue]Metasploit[/bold blue] Resource Script generated at: {rc_file}")
+    
+    # Check for msfconsole
+    if not shutil.which("msfconsole"):
+        error_msg("msfconsole not found in PATH! Cannot execute scan.")
+        return {'success': False, 'message': 'msfconsole not found. Script generated.'}
+        
+    cmd = f"msfconsole -r {rc_file}"
+    output_file = os.path.join(output_dir, f'metasploit_scan_{target_ip}.txt')
+    
+    # 15 minutes timeout
+    result = run_tool_live(cmd, timeout=900, output_file=output_file, label="METASPLOIT AUTO")
+    result['message'] = f"Metasploit Scan Completed. Results in {output_file}"
     return result

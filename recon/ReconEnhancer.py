@@ -154,6 +154,10 @@ class ReconEnhancer:
                     service = port_info.get('service', '').lower()
                     version = port_info.get('version', '')
                     
+                    # Skip tcpwrapped ports (noise reduction for firewalls/Cloudflare)
+                    if service == 'tcpwrapped':
+                        continue
+                    
                     # Web services
                     if service in ['http', 'https', 'http-proxy'] or port in ['80', '443', '8080', '8443', '3000', '5000', '8000']:
                         protocol = 'https' if port == '443' or service == 'https' else 'http'

@@ -23,7 +23,8 @@ from attack_chain import (
     hydra_smtp, hydra_mysql, hydra_rdp,
     hydra_telnet, hydra_pop3, hydra_imap,
     sqlmap_url, sqlmap_form, nmap_vulnscan,
-    nikto_scan, dirb_scan, hping3_dos
+    nikto_scan, dirb_scan, hping3_dos,
+    run_metasploit_scan
 )
 
 
@@ -100,6 +101,35 @@ def identify_attack_opportunities(data):
             'severity': 'critical',
             'func': hping3_dos
         })
+
+    # Metasploit Auto Scan (High Priority)
+    seen_ips_msf = set()
+    for st in data.get('service_targets', []):
+        target = st.get('target', {})
+        ip = target.get('ip', '')
+        if ip and ip not in seen_ips_msf:
+            seen_ips_msf.add(ip)
+            
+            # Gather all open ports for this IP
+            host_ports = []
+            for sub_st in data.get('service_targets', []):
+                 sub_target = sub_st.get('target', {})
+                 if sub_target.get('ip') == ip:
+                     host_ports.append({
+                         'port': sub_target.get('port'), 
+                         'service': sub_target.get('service')
+                     })
+            
+            opportunities.append({
+                'type': 'metasploit_auto',
+                'tool': 'Metasploit',
+                'ip': ip,
+                'service': 'Targeted Scan',
+                'description': f'Auto-generate & Run MSF Scan on {ip}',
+                'severity': 'critical',
+                'extra_data': host_ports,
+                'func': run_metasploit_scan
+            })
 
     # SSH targets
     for st in data.get('service_targets', []):
