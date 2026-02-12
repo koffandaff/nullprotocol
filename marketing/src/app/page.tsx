@@ -4,7 +4,7 @@ import SimpleExplanation from "@/components/SimpleExplanation";
 import ValueProp from "@/components/ValueProp";
 import Features from "@/components/Features";
 import HowIBuiltIt from "@/components/HowIBuiltIt";
-import TechStack from "@/components/TechStack"; // New Component
+
 import InstallGuide from "@/components/InstallGuide";
 import Demo from "@/components/Demo";
 import TargetAudience from "@/components/TargetAudience";
@@ -18,8 +18,8 @@ export default function Home() {
       <SimpleExplanation />
       <ValueProp />
       <Features />
+
       <HowIBuiltIt />
-      <TechStack />
       <TargetAudience />
       <InstallGuide />
       <Demo />
