@@ -92,65 +92,65 @@ graph TD
 ```mermaid
 graph TD
     %% START
-    A[🎯 Input] --> B{Type?}
-    B -->|Domain| C[Domain Pipeline]
-    B -->|IP| E[Direct IP]
+    A[Start] --> B[🎯 Input<br>Domain/IP]
     
-    %% DOMAIN PROCESSING
-    subgraph C [Domain]
-        C1[Subdomain Discovery]
-        C2[DNS Resolution]
-        C3[Merge IPs]
+    %% RECON PHASE
+    subgraph Recon [🕵️ Reconnaissance Phase]
+        direction TB
+        R1[Subdomain & DNS<br>Enum & Resolution]
+        R2[Port Scanning<br>Masscan + Nmap]
+        R3[Recon Enhancer<br>Web Analysis & CVEs]
+        
+        B --> R1 --> R2 --> R3
     end
-    
-    C1 --> C2 --> C3 --> D
-    
-    E --> D[IP List]
-    
-    %% PORT SCANNING
-    D --> F[Port Scanning]
-    
-    subgraph F [Scanning]
-        F1[Masscan: Fast Ports]
-        F2[Nmap: Services]
-        F3[Nmap: OS Fingerprint]
+
+    %% HANDOFF
+    R3 --> D[💾 enhanced.json<br>Structured Data]
+
+    %% ATTACK PHASE
+    subgraph Attack [⚔️ Attack Phase]
+        direction TB
+        A1[Attack Identification<br>Parse Services & Vulns]
+        
+        subgraph Tools [Active Exploitation Tools]
+            T1[Hydra<br>Auth Cracking]
+            T2[SQLMap<br>SQL Injection]
+            T3[Metasploit<br>Exploit Execution]
+            T4[hping3<br>DoS Stress Test]
+        end
+        
+        D --> A1
+        A1 --> Tools
     end
+
+    %% REPORTING PHASE
+    Tools --> E[📊 Aggregated Results]
+    R3 --> E
     
-    F1 --> F2 --> F3 --> G
-    
-    %% ENHANCED RECON
-    G[Scan Results] --> H[Recon Enhancer]
-    
-    subgraph H [Enhanced Analysis]
-        H1[Web Analysis]
-        H2[Exploit Mapping]
-        H3[Threat Intel]
-        H4[Report Generation]
+    subgraph Report [📝 Reporting Phase]
+        direction TB
+        H1[HostRecon<br>Web Dashboard]
+        H2[HTML Reports<br>Interactive]
+        H3[PDF Export<br>Executive Summary]
+        
+        E --> H1
+        H1 --> H2
+        H1 --> H3
     end
-    
-    H1 --> H4
-    H2 --> H4
-    H3 --> H4
-    
-    %% OUTPUT
-    H4 --> I[📊 Final Report]
-    H4 --> J[📋 Executive Summary]
-    
-    I --> K[✅ All Findings]
-    J --> L[🎯 Critical Issues]
-    
+
     %% STYLING
-    style A fill:#4CAF50,color:white
-    style B fill:#ff6b6b,color:white
-    style C fill:#e3f2fd
-    style F fill:#fff3e0
-    style H fill:#fce4ec
-    style I fill:#009688,color:white
-    style J fill:#673ab7,color:white
+    classDef default fill:#f9f9f9,stroke:#333,stroke-width:1px;
+    classDef input fill:#4CAF50,color:white,stroke:none;
+    classDef recon fill:#E3F2FD,stroke:#2196F3,stroke-width:2px;
+    classDef data fill:#FFEB3B,stroke:#FBC02D,stroke-width:2px,stroke-dasharray: 5 5;
+    classDef attack fill:#FFEBEE,stroke:#F44336,stroke-width:2px;
+    classDef report fill:#E8F5E9,stroke:#4CAF50,stroke-width:2px;
     
-    style H1 fill:#e1f5fe
-    style H2 fill:#f1f8e9
-    style H3 fill:#fff3e0
+    class B input;
+    class R1,R2,R3 recon;
+    class D data;
+    class A1,T1,T2,T3,T4 attack;
+    class H1,H2,H3 report;
 ```
 
 ## Project Structure
