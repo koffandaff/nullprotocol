@@ -104,7 +104,7 @@ def run_tool_live(cmd, timeout=300, output_file=None, label="Attack"):
                 break
 
         process.wait(timeout=10)
-        return_code = process.returncode
+        return_code = process.returncode 
 
         output = '\n'.join(full_output)
         elapsed = int(time.time() - start_time)
