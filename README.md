@@ -1,64 +1,51 @@
-#  Fsociety Pentest Automation
-
-**Automated Reconnaissance & Vulnerability Assessment Pipeline**
-
-[![Python Version](https://img.shields.io/badge/python-3.13%2B-blue)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Documentation](https://img.shields.io/badge/docs-readme.md-brightgreen)](README.md)
+# NullProtocol
+Automated Reconnaissance & Vulnerability Assessment Pipeline
 
 ## Abstract
-
-**Fsociety Pentest Automation** is an integrated reconnaissance and vulnerability assessment pipeline designed to streamline the information-gathering phase of penetration testing. By orchestrating industry-standard security tools through a Python-based core, it automates the discovery of attack surfaces, from subdomain enumeration to exploit mapping.
+NullProtocol is an integrated reconnaissance and vulnerability assessment pipeline designed to streamline the information-gathering phase of penetration testing. By orchestrating industry-standard security tools through a Python-based core, it automates the discovery of attack surfaces, from subdomain enumeration to exploit mapping.
 
 The system reduces manual reconnaissance overhead by 70% while providing comprehensive, structured reporting in both human-readable and machine-parsable formats. Perfect for red teams, penetration testers, and security researchers looking to accelerate their initial assessment phases.
 
----
+## Table of Contents
+1.  [Features](#features)
+2.  [System Architecture](#system-architecture)
+3.  [Project Structure](#project-structure)
+4.  [Tech Stack](#tech-stack)
+5.  [Module Documentation](#module-documentation)
+6.  [Installation](#installation)
+7.  [Usage](#usage)
+8.  [Output & Reporting](#output--reporting)
+9.  [Contributing](#contributing)
+10. [Legal Disclaimer](#legal-disclaimer)
 
-##  Table of Contents
+## Features
 
-1. [ Features](#-features)
-2. [ System Architecture](#️-system-architecture)
-3. [ Project Structure](#-project-structure)
-4. [ Tech Stack](#️-tech-stack)
-5. [ Module Documentation](#-module-documentation)
-6. [ Installation](#-installation)
-7. [ Usage](#-usage)
-8. [ Output & Reporting](#-output--reporting)
-9. [ Contributing](#-contributing)
-10. [ Legal Disclaimer](#️-legal-disclaimer)
+### Intelligent Reconnaissance
+*   **Subdomain Discovery**: Automated extraction using sublist3r, crt.sh, and findomain with smart deduplication.
+*   **Multi-threaded DNS Resolution**: Concurrent IP resolution using native sockets and custom resolvers.
+*   **High-Speed Port Scanning**: Masscan for rapid discovery paired with targeted Nmap for service fingerprinting.
 
----
+### Web Application Analysis
+*   **Technology Stack Detection**: WhatWeb integration for comprehensive tech fingerprinting.
+*   **Directory/File Enumeration**: Multi-wordlist directory brute-forcing with Gobuster.
+*   **API Endpoint Discovery**: Common API path enumeration and testing.
+*   **Quick Vulnerability Checks**: Automatic detection of common misconfigurations (Git exposure, .env leaks, backup files).
 
-##  Features
+### Exploit Intelligence
+*   **Automated Exploit Mapping**: Correlation of discovered services with Exploit-DB and Metasploit.
+*   **Version-Specific Matching**: Intelligent service version parsing for precise exploit suggestions.
+*   **CVE Prioritization**: Ranking of discovered vulnerabilities by potential impact.
+*   **Metasploit Integration**: Auto-generation of resource scripts (.rc) for verified vulnerabilities.
 
-###  **Intelligent Reconnaissance**
-- **Subdomain Discovery**: Automated extraction using `dnsrecon` and `findomain` with smart deduplication
-- **Multi-threaded DNS Resolution**: Concurrent IP resolution using native sockets and `nslookup`
-- **High-Speed Port Scanning**: `masscan` for rapid discovery + targeted `nmap` for service fingerprinting
+### Reporting & Analytics
+*   **Unified Reporting**: Single consolidated report with executive summary and technical details.
+*   **Geolocation Intelligence**: IP geolocation, ASN information, and threat intelligence correlation.
+*   **Multiple Formats**: JSON for automation + Markdown/PDF for human review.
+*   **Risk Scoring**: Automated risk assessment based on discovered vulnerabilities.
 
-###  **Web Application Analysis**
-- **Technology Stack Detection**: `WhatWeb` integration for comprehensive tech fingerprinting
-- **Directory/File Enumeration**: Multi-wordlist directory brute-forcing with `Gobuster`
-- **API Endpoint Discovery**: Common API path enumeration and testing
-- **Quick Vulnerability Checks**: Automatic detection of common misconfigurations (Git exposure, `.env` leaks, backup files)
+## System Architecture
 
-###  **Exploit Intelligence**
-- **Automated Exploit Mapping**: Correlation of discovered services with `Exploit-DB` using `searchsploit`
-- **Version-Specific Matching**: Intelligent service version parsing for precise exploit suggestions
-- **CVE Prioritization**: Ranking of discovered vulnerabilities by potential impact
-
-###  **Reporting & Analytics**
-- **Unified Reporting**: Single consolidated report with executive summary and technical details
-- **Geolocation Intelligence**: IP geolocation, ASN information, and threat intelligence correlation
-- **Multiple Formats**: JSON for automation + Markdown for human review
-- **Risk Scoring**: Automated risk assessment based on discovered vulnerabilities
-
----
-
-##  System Architecture
-
-### **Main Pipeline Flow**
-
+### Main Pipeline Flow
 ```mermaid
 graph TD
     A[ Target Input<br>Domain/IP] --> B{Input Type}
@@ -84,8 +71,7 @@ graph TD
     M --> N[ Final Output<br>JSON + Markdown]
 ```
 
-### 🕸️ **Web Target Analysis Pipeline**
-
+### Web Target Pipeline
 ```mermaid
 graph TD
     A[ Web Target URL] --> B[ Technology Fingerprinting<br>WhatWeb]
@@ -102,8 +88,7 @@ graph TD
     G --> H[ Report Generation<br>By Severity]
 ```
 
-## Recon Flow(simplified):
-
+### Full Flow Simplified
 ```mermaid
 graph TD
     %% START
@@ -168,218 +153,189 @@ graph TD
     style H3 fill:#fff3e0
 ```
 
+## Project Structure
 
----
-
-## 📁 Project Structure
-
-```
-fsociety-pentest-automation/
-├── 📂 recon/                          # Core application directory
-│   ├── 📄 main.py                    # Primary entry point & UI handler
-│   ├── 📄 Domain.py                  # Domain target orchestration
-│   ├── 📄 IpHandler.py               # IP target processing pipeline
-│   ├── 📄 utility.py                 # Helper functions & utilities
-│   ├── 📄 subdomain.py               # Subdomain discovery logic
-│   ├── 📄 DnsResolver.py             # Multi-threaded DNS resolution
-│   ├── 📄 IpExtraction.py            # IP address parsing & validation
-│   ├── 📄 IpNmapHandler.py           # Multi-threaded Nmap controller
-│   ├── 📄 NmapXMLCleaner.py          # XML parsing & data extraction
-│   ├── 📄 SubDomainExtraction.py     # Tool output processing
+```text
+nullprotocol/
+├── recon/                          # Core reconnaissance modules
+│   ├── main.py                     # Entry point (Recon)
+│   ├── Domain.py                   # Domain target orchestration
+│   ├── IpHandler.py                # IP target processing pipeline
+│   ├── utility.py                  # Helper functions & utilities
+│   ├── subdomain.py                # Subdomain discovery logic
+│   ├── DnsResolver.py              # Multi-threaded DNS resolution
+│   ├── IpExtraction.py             # IP address parsing & validation
+│   ├── IpNmapHandler.py            # Multi-threaded Nmap controller
+│   ├── NmapXMLCleaner.py           # XML parsing & data extraction
+│   ├── SubDomainExtraction.py      # Tool output processing
 │   │
-│   ├── 📂 ReconEnhancerTools/        # Advanced analysis modules
-│   │   ├── 📄 __init__.py
-│   │   ├── 📄 web_scanner.py         # Web application scanning
-│   │   ├── 📄 exploit_searcher.py    # Exploit-DB integration
-│   │   └── 📄 ip_analyzer.py         # Geolocation & threat intel
+│   ├── ReconEnhancerTools/         # Advanced analysis modules
+│   │   ├── web_scanner.py          # Web application scanning
+│   │   ├── exploit_searcher.py     # Exploit-DB integration
+│   │   ├── ip_analyzer.py          # Geolocation & threat intel
+│   │   ├── crawler.py              # Advanced web crawler
+│   │   └── ollama_handler.py       # AI-enhanced analysis
 │   │
-│   └── 📂 results/                   # Automated scan outputs
-│                    
+│   └── templates/                  # Report templates (HTML/Jinja2)
 │
-├── 📄 requirements.txt               # Python dependencies
-├── 📄 install.sh                     # One-click installer
-├── 📄 LICENSE                        # MIT License
-└── 📄 README.md                      # This documentation
+├── brute/                          # Attack & Exploitation modules
+│   ├── main.py                     # Entry point (Brute Force)
+│   ├── attack_chain.py             # Attack orchestration logic
+│   └── MetasploitHandler.py        # Metasploit integration
+│
+├── Marketing/                      # Marketing Website (Next.js)
+│
+├── requirements.txt                # Python dependencies
+├── install.sh                      # One-click installer
+└── README.md                       # Documentation
 ```
 
----
+## Tech Stack
 
-## 🛠️ Tech Stack
+### Core Language
+*   **Python 3.10+**: Primary programming language.
 
-### **Core Language**
-- **Python 3.13+**: Primary programming language
-
-### **Python Libraries**
+### Python Libraries & Modules
 | Library | Purpose |
-|---------|---------|
-| `requests` | HTTP requests for API calls and web checks |
-| `xmltodict` | Parse Nmap XML outputs into Python dicts |
-| `python-magic` | File type identification via libmagic |
-| `rich` | Terminal UI, progress bars, and styling |
-| `concurrent.futures` | Multi-threading for performance |
+| :--- | :--- |
+| **requests** | HTTP library for web requests and API interaction |
+| **rich** | Beautiful terminal formatting, tables, and progress bars |
+| **typer** | Modern CLI application builder |
+| **xmltodict** | Parsing Nmap XML output to Python dictionaries |
+| **beautifulsoup4** | HTML parsing for web crawling and form extraction |
+| **jinja2** | Templating engine for HTML/PDF report generation |
+| **python-magic** | File type identification via libmagic |
+| **concurrent.futures** | Asynchronous execution and thread pooling |
+| **socket** | Low-level networking interface |
+| **subprocess** | Execution of external system tools |
+| **json** | JSON data handling and serialization |
+| **re** | Regular expressions for pattern matching |
+| **shutil** | High-level file operations |
 
-### **Security Tools Integration**
-| Tool | Function | Installation |
-|------|----------|--------------|
-| **Nmap** | Service/OS detection | `apt install nmap` |
-| **Masscan** | High-speed port scanning | `apt install masscan` |
-| **Dnsrecon** | DNS enumeration | `apt install dnsrecon` |
-| **Findomain** | Subdomain discovery | [GitHub Releases](https://github.com/Findomain/Findomain) |
-| **Gobuster** | Directory brute-forcing | `apt install gobuster` |
-| **WhatWeb** | Web technology detection | `apt install whatweb` |
-| **Searchsploit** | Exploit-DB CLI interface | `apt install exploitdb` |
+### Security Tools & Integrations
+| Tool | Function | Installed Via |
+| :--- | :--- | :--- |
+| **Nmap** | Network discovery and security auditing | `apt install nmap` |
+| **Masscan** | TCP port scanner, spews SYN packets asynchronously | `apt install masscan` |
+| **Dnsrecon** | DNS enumeration script | `apt install dnsrecon` |
+| **Findomain** | Fastest subdomain enumerator | Binary release |
+| **Gobuster** | Directory/File, DNS and VHost busting tool | `apt install gobuster` |
+| **WhatWeb** | Next generation web scanner | `apt install whatweb` |
+| **Searchsploit** | Command line search tool for Exploit-DB | `apt install exploitdb` |
+| **Hydra** | Parallelized login cracker which supports numerous protocols | `apt install hydra` |
+| **SQLMap** | Automatic SQL injection and database takeover tool | `apt install sqlmap` |
+| **Metasploit Framework** | Penetration testing software for writing and executing exploit code | Rapid7 Script |
+| **Hping3** | Network tool able to send custom TCP/IP packets (DoS) | `apt install hping3` |
 
----
+## Module Documentation
 
-## 📄 Module Documentation
+### Core Modules
+*   **recon/main.py**: Application entry point. Handles user interface, input validation, and flow control.
+*   **recon/Domain.py**: Domain processing orchestration. Coordinates subdomain → IP → scanning pipeline.
+*   **recon/IpHandler.py**: IP target handler. Manages the port scanning workflow for individual IPs.
+*   **recon/utility.py**: Common utilities. Handles IP validation, file operations, and directory management.
 
-### **Core Modules**
+### Reconnaissance Modules
+*   **subdomain.py**: Subdomain discovery. Orchestrates external tools and aggregates results.
+*   **DnsResolver.py**: DNS resolution. Performs multi-threaded lookups with caching.
+*   **IpExtraction.py**: IP parsing. Extracts IPs from various input formats.
+*   **IpNmapHandler.py**: Nmap controller. Manages parallel scanning and output file generation.
+*   **NmapXMLCleaner.py**: XML processing. Parses, cleans, and structures Nmap data for easy consumption.
 
-| Module | Purpose | Key Functions |
-|--------|---------|---------------|
-| `main.py` | Application entry point | User interface, input validation, flow control |
-| `Domain.py` | Domain processing orchestration | Coordinates subdomain → IP → scanning pipeline |
-| `IpHandler.py` | IP target handler | Manages port scanning workflow |
-| `utility.py` | Common utilities | IP validation, file ops, directory management |
+### Enhancement Modules
+*   **web_scanner.py**: Web analysis. Handles directory brute-forcing and technology detection.
+*   **exploit_searcher.py**: Exploit mapping. Correlates services to CVEs and scores risk.
+*   **ip_analyzer.py**: Intelligence gathering. Fetches geolocation, ASN, and threat data.
+*   **crawler.py**: Deep web crawling. Extracts parameters and forms for SQL injection testing.
 
-### **Reconnaissance Modules**
+## Installation
 
-| Module | Purpose | Key Functions |
-|--------|---------|---------------|
-| `subdomain.py` | Subdomain discovery | Tool orchestration, result aggregation |
-| `DnsResolver.py` | DNS resolution | Multi-threaded lookups, caching |
-| `IpExtraction.py` | IP parsing | Extracts IPs from various formats |
-| `IpNmapHandler.py` | Nmap controller | Parallel scanning, output management |
-| `NmapXMLCleaner.py` | XML processing | Parses, cleans, and structures Nmap data |
+### Quick Install (Linux)
 
-### **Enhancement Modules**
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/koffandaff/NullProtocol.git
+    cd NullProtocol
+    ```
 
-| Module | Purpose | Key Functions |
-|--------|---------|---------------|
-| `web_scanner.py` | Web analysis | Directory brute-forcing, tech detection |
-| `exploit_searcher.py` | Exploit mapping | Service→CVE correlation, risk scoring |
-| `ip_analyzer.py` | Intelligence gathering | Geolocation, ASN, threat data |
+2.  Run the installer:
+    ```bash
+    chmod +x install.sh
+    sudo ./install.sh
+    ```
 
----
+3.  (Optional) Set up Virtual Environment:
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install -r requirements.txt
+    ```
 
-## 🚀 Installation
+### Dependencies
+*   **System**: nmap, masscan, dnsrecon, gobuster, whatweb, exploitdb, libmagic-dev, metasploit-framework
+*   **Python**: listed in `requirements.txt`
 
-### **Quick Install (Linux)**
+## Usage
+
+### Basic Usage
+Navigate to the project root and run the brute force module (primary entry point):
+
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/fsociety-pentest-automation.git
-cd fsociety-pentest-automation
-
-# Run the installer
-chmod +x install.sh
-sudo ./install.sh
+python3 brute/main.py
 ```
 
-### **Manual Installation**
+Or the reconnaissance module:
 
-1. **Install System Dependencies:**
 ```bash
-sudo apt update
-sudo apt install -y nmap masscan dnsrecon gobuster whatweb exploitdb libmagic-dev
+python3 recon/main.py
 ```
 
-2. **Install Findomain:**
-```bash
-curl -LO https://github.com/Findomain/Findomain/releases/latest/download/findomain-linux.zip
-unzip findomain-linux.zip
-chmod +x findomain
-sudo mv findomain /usr/local/bin/
-rm findomain-linux.zip
+### Interactive Mode
+The tool launches an interactive menu:
+
+```text
+  1  -->  I have a Domain Name
+  2  -->  I have an IP Address
+  3  -->  View Previous Scans (HostRecon)
+  4  -->  Launch Brute Force Module
 ```
 
-3. **Install Python Dependencies:**
-```bash
-pip3 install -r requirements.txt
-```
+## Output & Reporting
 
-### **Dependencies File**
+### Markdown/PDF Report Includes:
+*   Executive Summary with Risk Score
+*   Target Information & Scope
+*   Discovered Assets (Subdomains, IPs)
+*   Open Ports & Services
+*   Web Application Findings
+*   Exploit Recommendations
+*   Remediation Guidelines
 
-**`requirements.txt`:**
-```txt
-requests>=2.31.0
-xmltodict>=0.13.0
-python-magic>=0.4.27
-rich>=13.7.0
-```
-
----
-
-## 🎯 Usage
-
-### **Basic Usage**
-```bash
-# Navigate to the recon directory
-cd recon
-
-# Start the application
-python3 main.py
-```
-
-### **Interactive Mode**
-```
-==========================================
-     Fsociety Pentest Automation v1.0
-==========================================
-
-[1] Scan a Domain (example.com)
-[2] Scan an IP Address (192.168.1.1)
-[3] Scan IP Range (192.168.1.0/24)
-[4] Load from File (targets.txt)
-[5] Exit
-
-Select option [1-5]: 1
-Enter target domain: example.com
-```
-
-
-
----
-
-
-### **Report Contents**
-
-#### **Markdown Report Includes:**
-- Executive Summary with Risk Score
-- Target Information & Scope
-- Discovered Assets (Subdomains, IPs)
-- Open Ports & Services
-- Web Application Findings
-- Exploit Recommendations
-- Remediation Guidelines
-- Appendix with Raw Data
-
-#### **JSON Report Includes:**
+### JSON Report Structure:
 ```json
 {
   "metadata": {
     "target": "example.com",
     "scan_date": "2024-01-15",
-    "duration": "2h 15m",
     "risk_score": 7.5
   },
   "assets": {
-    "subdomains": ["www", "api", "admin"],
+    "subdomains": ["www", "api"],
     "ip_addresses": ["192.168.1.1"],
-    "open_ports": [80, 443, 8080]
+    "open_ports": [80, 443]
   },
   "vulnerabilities": [
     {
       "service": "Apache 2.4.49",
       "cve": "CVE-2021-41773",
-      "risk": "High",
-      "exploit_available": true
+      "risk": "High"
     }
   ]
 }
 ```
 
----
+## Contributing
+Contribution is welcome. Please fork the repository and submit a pull request.
 
-
-**"Knowledge is power. Use it responsibly."** 
-
+## Legal Disclaimer
+This tool is for educational and authorized testing purposes only. The author is not responsible for any misuse or damage caused by this tool. Usage of NullProtocol for attacking targets without prior mutual consent is illegal. It is the end user's responsibility to obey all applicable local, state, and federal laws.
