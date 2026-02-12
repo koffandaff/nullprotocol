@@ -613,7 +613,7 @@ def hping3_dos(opportunity, output_dir):
     output_file = os.path.join(output_dir, f'hping3_dos_{ip}_{mode}.txt')
     
     info_msg(f"Launching hping3 DoS ({mode.upper()} Flood) on {ip}:{port}")
-    warning_msg("CAUTION: This will flood the target with packets for 30 seconds.")
+    warning_msg("CAUTION: This will flood the target with packets for 60 seconds.")
     
     # Modes:
     # 1. SYN Flood (default): -S -p <port> --flood

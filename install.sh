@@ -51,6 +51,17 @@ sudo apt install -y \
 echo "[4/7] Installing attack & fuzzing tools..."
 sudo apt install -y hydra sqlmap hping3
 
+# Install Metasploit Framework (if not present)
+if ! command -v msfconsole &> /dev/null; then
+    echo "  → Installing Metasploit Framework..."
+    # Rapid7 Omnibus installer (works on most Linux distros)
+    curl https://raw.githubusercontent.com/rapid7/metasploit-omnibus/master/config/templates/metasploit-framework-wrappers/msfupdate.erb > /tmp/msfinstall
+    chmod 755 /tmp/msfinstall
+    sudo /tmp/msfinstall
+else
+    echo "  → Metasploit already installed"
+fi
+
 # Handle wkhtmltopdf installation (missing candidate fix for Kali/Debian 12)
 if ! command -v wkhtmltopdf &> /dev/null; then
     echo "  → Attempting to install wkhtmltopdf..."
