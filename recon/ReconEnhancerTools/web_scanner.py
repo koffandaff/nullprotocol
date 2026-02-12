@@ -425,37 +425,38 @@ class WebScanner:
                     continue
 
             # Security headers check
-            try:
-                response = requests.head(url, timeout=3, verify=False)
-                headers = response.headers
+            # Security headers check - DISABLED to reduce noise
+            # try:
+            #     response = requests.head(url, timeout=3, verify=False)
+            #     headers = response.headers
 
-                f.write("\n\nSecurity Headers Analysis:\n")
-                f.write("-" * 40 + "\n")
-                security_checks = {
-                    'X-Frame-Options': ('Missing clickjacking protection', 'medium'),
-                    'X-Content-Type-Options': ('Missing MIME sniffing protection', 'low'),
-                    'Content-Security-Policy': ('Missing CSP header', 'medium'),
-                    'Strict-Transport-Security': ('Missing HSTS header', 'medium'),
-                }
+            #     f.write("\n\nSecurity Headers Analysis:\n")
+            #     f.write("-" * 40 + "\n")
+            #     security_checks = {
+            #         'X-Frame-Options': ('Missing clickjacking protection', 'medium'),
+            #         'X-Content-Type-Options': ('Missing MIME sniffing protection', 'low'),
+            #         'Content-Security-Policy': ('Missing CSP header', 'medium'),
+            #         'Strict-Transport-Security': ('Missing HSTS header', 'medium'),
+            #     }
 
-                missing = []
-                for header, (message, sev) in security_checks.items():
-                    if header not in headers:
-                        missing.append(message)
-                        f.write(f"  [x] {message}\n")
-                    else:
-                        f.write(f"  [+] {header} present\n")
+            #     missing = []
+            #     for header, (message, sev) in security_checks.items():
+            #         if header not in headers:
+            #             missing.append(message)
+            #             f.write(f"  [x] {message}\n")
+            #         else:
+            #             f.write(f"  [+] {header} present\n")
 
-                if missing:
-                    findings.append({
-                        'type': 'missing_security_headers',
-                        'severity': 'medium',
-                        'description': f"Missing {len(missing)} security headers",
-                        'details': missing
-                    })
+            #     if missing:
+            #         findings.append({
+            #             'type': 'missing_security_headers',
+            #             'severity': 'medium',
+            #             'description': f"Missing {len(missing)} security headers",
+            #             'details': missing
+            #         })
 
-            except Exception:
-                f.write("[!] Could not check security headers\n")
+            # except Exception:
+            #     f.write("[!] Could not check security headers\n")
 
         # Sort by severity
         severity_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3, 'info': 4}

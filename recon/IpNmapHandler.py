@@ -21,8 +21,8 @@ class FastNmapHandler:
         os.makedirs(outputDir, exist_ok=True)
         xmlFile = f"{outputDir}/{ip}_combined.xml"
         
-        # Fast scan command with timing optimizations
-        cmd = f"nmap -sS --top-ports 100 -T4 -A -O --osscan-guess -sV --version-intensity 3 {ip} -oX {xmlFile}"
+        # Fast scan command with timing optimizations (-Pn skips ping check)
+        cmd = f"nmap -Pn -sS --top-ports 100 -T4 -A -O --osscan-guess -sV --version-intensity 3 {ip} -oX {xmlFile}"
         
         try:
             subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=300)

@@ -241,15 +241,42 @@ class ReconEnhancer:
         if subdomain_urls_added:
             info_msg(f"Added {len(subdomain_urls_added)} web targets from domain + subdomains")
 
-        # Remove duplicates
-        unique_targets = []
-        seen = set()
+        # ── Remove duplicates & Prioritize HTTPS ───────────────────
+        # Group by (host, port) to find collisions
+        # If we have http://example.com and https://example.com, prefer https
         
-        for target in targets:
-            key = (target.get('url', ''), target['ip'], target['port'])
-            if key not in seen:
-                seen.add(key)
-                unique_targets.append(target)
+        unique_targets = []
+        grouped = {}  # (host, port) -> list of targets
+        
+        for t in targets:
+            # Use netloc (host:port) as key, but treat 80/443 specially for same domain
+            parsed = urlparse(t.get('url', ''))
+            host = parsed.hostname or t['ip']
+            
+            # Normalize key: (host, 'web') to group http/https variants
+            # This is aggressive: if we see https://example.com, we skip http://example.com
+            if t['type'] == 'web':
+                key = (host, 'web_service')
+            else:
+                key = (host, t['port'])
+                
+            if key not in grouped:
+                grouped[key] = []
+            grouped[key].append(t)
+            
+        for key, group in grouped.items():
+            if len(group) == 1:
+                unique_targets.append(group[0])
+            else:
+                # Multiple targets for this key - pick best
+                # Prefer HTTPS
+                https_targets = [t for t in group if t.get('service') == 'https' or t.get('url', '').startswith('https://')]
+                if https_targets:
+                    # If multiple HTTPS (rare for same host), pick first
+                    unique_targets.append(https_targets[0])
+                else:
+                    # No HTTPS, pick first available
+                    unique_targets.append(group[0])
 
         web_count = len([t for t in unique_targets if t['type'] == 'web'])
         service_count = len([t for t in unique_targets if t['type'] == 'service'])
@@ -321,15 +348,8 @@ class ReconEnhancer:
         
         # HTTP/HTTPS attacks
         elif service_lower in ['http', 'https', 'http-proxy'] or port in ['80', '443', '8080', '8443']:
-            attacks = [
-                "Directory brute-forcing (gobuster, dirb)",
-                "SQL injection testing",
-                "XSS payload testing",
-                "File upload vulnerabilities",
-                "Authentication bypass attempts",
-                "API endpoint discovery",
-                "Technology fingerprinting"
-            ]
+            # Reduced noise: don't list generic "potential" checks for standard web ports
+            attacks = []
             if 'nginx' in version.lower():
                 attacks.append("Nginx-specific misconfigurations")
             elif 'apache' in version.lower():
