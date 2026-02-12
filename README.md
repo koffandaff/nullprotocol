@@ -92,10 +92,10 @@ graph TD
 ```mermaid
 graph TD
     %% START
-    A[Start] --> B[🎯 Input<br>Domain/IP]
+    A[Start] --> B[ Input<br>Domain/IP]
     
     %% RECON PHASE
-    subgraph Recon [🕵️ Reconnaissance Phase]
+    subgraph Recon [ Reconnaissance Phase]
         direction TB
         R1[Subdomain & DNS<br>Enum & Resolution]
         R2[Port Scanning<br>Masscan + Nmap]
@@ -105,10 +105,10 @@ graph TD
     end
 
     %% HANDOFF
-    R3 --> D[💾 enhanced.json<br>Structured Data]
+    R3 --> D[ enhanced.json<br>Structured Data]
 
     %% ATTACK PHASE
-    subgraph Attack [⚔️ Attack Phase]
+    subgraph Attack [ Attack Phase]
         direction TB
         A1[Attack Identification<br>Parse Services & Vulns]
         
@@ -124,10 +124,10 @@ graph TD
     end
 
     %% REPORTING PHASE
-    Tools --> E[📊 Aggregated Results]
+    Tools --> E[ Aggregated Results]
     R3 --> E
     
-    subgraph Report [📝 Reporting Phase]
+    subgraph Report [ Reporting Phase]
         direction TB
         H1[HostRecon<br>Web Dashboard]
         H2[HTML Reports<br>Interactive]
