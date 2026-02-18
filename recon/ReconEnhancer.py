@@ -1032,7 +1032,15 @@ class ReconEnhancer:
             ("Ollama Analysis", "Yes" if all_results.get('ollama_analysis') else "No"),
         ]
         if high_value_found:
-            hv_str = ", ".join(f"{s}({p})" for s, p, _ in high_value_found[:8])
+            # Consolidate duplicates for cleaner display: Service(Port)xCount
+            hv_counts = Counter(f"{s}({p})" for s, p, _ in high_value_found)
+            hv_items = []
+            for sp, count in hv_counts.most_common(8):
+                if count > 1:
+                    hv_items.append(f"{sp}x{count}")
+                else:
+                    hv_items.append(sp)
+            hv_str = ", ".join(hv_items)
             summary_rows.insert(5, ("⚠ High-Value Services", hv_str))
         make_table(
             "SCAN COMPLETE",
