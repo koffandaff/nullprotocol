@@ -182,12 +182,25 @@ class SQLiCrawler:
                 clean_url += f"?{parsed.query}"
             links_set.add(clean_url)
 
+    # Static asset extensions that should never be treated as SQLi targets
+    _STATIC_EXTENSIONS = frozenset([
+        '.ico', '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.bmp',
+        '.css', '.js', '.map', '.woff', '.woff2', '.ttf', '.eot', '.otf',
+        '.pdf', '.mp4', '.mp3', '.avi', '.mov', '.webm', '.zip', '.gz',
+        '.tar', '.rar', '.7z', '.exe', '.dll', '.so', '.bin',
+    ])
+
     def _add_param_url(self, url, source, base_domain):
         """Add a parameterized URL if not already seen."""
         p = urlparse(url)
         if not p.query:
             return
         if base_domain and p.netloc != base_domain:
+            return
+
+        # Skip static assets — cache-busted filenames are not injectable
+        path_lower = p.path.lower()
+        if any(path_lower.endswith(ext) for ext in self._STATIC_EXTENSIONS):
             return
         params = sorted(parse_qs(p.query).keys())
         dedup_key = (p.path, tuple(params))

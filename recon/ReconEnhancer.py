@@ -191,7 +191,7 @@ class ReconEnhancer:
                     elif service in ['ssh', 'ftp', 'mysql', 'postgresql', 'redis', 'telnet',
                                      'smtp', 'smtps', 'dns', 'snmp', 'pop3', 'pop3s',
                                      'imap', 'imaps', 'rdp', 'ms-wbt-server',
-                                     'domain', 'tcpwrapped']:
+                                     'domain']:
                         targets.append({
                             'type': 'service',
                             'ip': ip,
@@ -329,6 +329,10 @@ class ReconEnhancer:
                     service = port_info.get('service', '').lower()
                     version = port_info.get('version', '')
                     state = port_info.get('state', 'open')
+                    
+                    # Skip tcpwrapped — these are firewall/CDN noise
+                    if service == 'tcpwrapped':
+                        continue
                     
                     # Get potential attacks for this service
                     potential_attacks = self.get_potential_attacks(service, port, version)
