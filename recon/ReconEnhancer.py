@@ -29,14 +29,15 @@ from utility import (
 )
 
 class ReconEnhancer:
-    def __init__(self, domain, subdomain_file, nmap_json, ip_input):
+    def __init__(self, domain, subdomain_file, nmap_json, ip_input, project_name=None):
         self.domain = domain
         self.subdomain_file = subdomain_file
         self.nmap_json = nmap_json
         self.ip_input = ip_input
+        self.project_name = project_name if project_name else domain
 
         # Setup directories
-        self.basedir = f'results/{domain}'
+        self.basedir = f'results/{self.project_name}'
         self.data_dir = f'{self.basedir}/FinalReport'
         self.report_file = f'{self.data_dir}/report.txt'
         self.json_file = f'{self.data_dir}/enhanced.json'
@@ -1052,10 +1053,12 @@ class ReconEnhancer:
         return all_results
 
 
-def main(domain, subdomain_file, nmap_json, ip_input):
+def main(domain, subdomain_file, nmap_json, ip_input, project_name=None):
     """Main function with Ollama integration."""
     section_header("RECON ENHANCER v2.0")
     info_msg(f"Target: {domain}")
+    if project_name and project_name != domain:
+        info_msg(f"Project Directory: results/{project_name}")
     
     # Check required files
     for file_path in [subdomain_file, nmap_json]:
@@ -1064,7 +1067,7 @@ def main(domain, subdomain_file, nmap_json, ip_input):
             return None
     
     # Create enhancer
-    enhancer = ReconEnhancer(domain, subdomain_file, nmap_json, ip_input)
+    enhancer = ReconEnhancer(domain, subdomain_file, nmap_json, ip_input, project_name=project_name)
     
     # Check Ollama availability
     use_ollama, model = interactive_ollama_check()

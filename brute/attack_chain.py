@@ -648,6 +648,38 @@ def hping3_dos(opportunity, output_dir):
 
 # ─── METASPLOIT AUTOMATION ────────────────────────────────────
 
+def _parse_metasploit_output(output):
+    """Parse Metasploit output for key findings."""
+    summary = []
+    if not output:
+        return "No output"
+    
+    # Check sessions
+    sessions = re.findall(r'Meterpreter session \d+ opened', output)
+    if sessions:
+        summary.append(f"{len(sessions)} Meterpreter session(s)")
+    
+    shells = re.findall(r'Command shell session \d+ opened', output)
+    if shells:
+        summary.append(f"{len(shells)} Shell session(s)")
+        
+    # Check for [+] indicators (excluding session opens to avoid double counting)
+    plus_lines = [line.strip() for line in output.split('\n') 
+                  if line.strip().startswith('[+]') and 'opened' not in line]
+    
+    if plus_lines:
+        # Just return the first one as a sample if few, or count if many
+        if len(plus_lines) == 1:
+            summary.append(f"Finding: {plus_lines[0][4:]}")
+        else:
+            summary.append(f"{len(plus_lines)} other finding(s)")
+
+    if not summary:
+        return "Scan completed (no immediate sessions)"
+    
+    return ", ".join(summary)
+
+
 def run_metasploit_scan(opportunity, output_dir):
     """
     Generates and runs a Metasploit resource script.
@@ -679,5 +711,9 @@ def run_metasploit_scan(opportunity, output_dir):
     
     # 15 minutes timeout
     result = run_tool_live(cmd, timeout=900, output_file=output_file, label="METASPLOIT AUTO")
-    result['message'] = f"Metasploit Scan Completed. Results in {output_file}"
+    
+    # Parse output for meaningful message
+    summary = _parse_metasploit_output(result.get('output', ''))
+    result['message'] = f"{summary} (Log: {os.path.basename(output_file)})"
+    
     return result

@@ -41,7 +41,7 @@ def IpMasscan(ip_list, domain):
     return {'ip': ips, 'dir': Dir}
 
 
-def IpHandler(Ip, domain=None, Subdomain_File=None):
+def IpHandler(Ip, domain=None, Subdomain_File=None, project_name=None):
     """Orchestrate IP scanning pipeline with robust error handling.
 
     Supports two modes:
@@ -53,6 +53,10 @@ def IpHandler(Ip, domain=None, Subdomain_File=None):
     # ── Derive domain name if not provided ──
     if not domain:
         domain = Ip[0] if Ip else "unknown_target"
+    
+    # Derive project_name (folder name) if not provided
+    if not project_name:
+        project_name = domain
 
     section_header("IP PIPELINE")
 
@@ -91,7 +95,8 @@ def IpHandler(Ip, domain=None, Subdomain_File=None):
         warning_msg("No hosts responded to ping -- scanning all valid IPs anyway (may be filtered)")
 
     # ── Step 3: Masscan ──
-    IpData = IpMasscan(scan_ips, domain)
+    # Pass project_name for directory creation
+    IpData = IpMasscan(scan_ips, project_name)
 
     if not IpData['ip']:
         warning_msg("Masscan found no open ports. Proceeding with Nmap for deeper scan...")
@@ -126,7 +131,7 @@ def IpHandler(Ip, domain=None, Subdomain_File=None):
         info_msg(f"Created temp subdomain file from reverse DNS: {temp_sub_file}")
 
     try:
-        ReconEnhancer.main(domain, Subdomain_File, Nmap_Result['File_Location'], IpData['ip'])
+        ReconEnhancer.main(domain, Subdomain_File, Nmap_Result['File_Location'], IpData['ip'], project_name=project_name)
         success_msg("Recon Enhancement complete!")
     except Exception as e:
         error_msg(f"ReconEnhancer failed: {e}")

@@ -5,9 +5,15 @@ from DnsResolver import IpConvertor,IpConvertorSocket
 from IpHandler import IpHandler
 import os
 
-def DomainHandler(domain):
-	print("----Domain Selected" ,domain,"Starting Domain Flow---------")
-	Data = GetSubDomain(domain)
+def DomainHandler(domain, project_name=None):
+	# Decouple target from output directory
+	target = domain
+	output_dir_name = project_name if project_name else domain
+
+	print("----Domain Selected" ,target,"Starting Domain Flow---------")
+	print(f"----Project Directory: results/{output_dir_name}---------")
+	
+	Data = GetSubDomain(target)
 	SubDomains= []
 	ResolvedIp = []
 	print(Data)
@@ -24,12 +30,12 @@ def DomainHandler(domain):
 				ResolvedIp.append(ip)
 	print(ResolvedIp)
 	
-	# Creating a result+Domain Directory if not Exists
-	Domain_Dir = Create_Domain_Directory(domain)
+	# Creating a result+Domain Directory based on project_name
+	Domain_Dir = Create_Domain_Directory(output_dir_name)
 	
 	print(f"---------Creating a FIle for SubDomain Report in {Domain_Dir}-------------------")
 	# Creating a File For SubDomain
-	Name = domain + 'SubDomain' + 'Report'
+	Name = target + 'SubDomain' + 'Report'
 	SubDomain_File = os.path.join(Domain_Dir,FileGenarator(Name))
 	with open(SubDomain_File, 'w')  as f:
 		for subdomain in SubDomains:
@@ -45,7 +51,7 @@ def DomainHandler(domain):
 	All_ResolvedIp = list(set(ResolvedIp + SubDomain_IP))
 	
 	# Create a File for Final IP
-	Name = domain + 'IPs' + 'Report'
+	Name = target + 'IPs' + 'Report'
 	IP_File = os.path.join(Domain_Dir,FileGenarator(Name))
 	
 	with open(IP_File, 'w') as f:
@@ -57,6 +63,6 @@ def DomainHandler(domain):
 
 
     
-	# Pass to IpHandler
-	IpHandler(All_ResolvedIp,domain, SubDomain_File)
+	# Pass project_name to IpHandler
+	IpHandler(All_ResolvedIp, domain=target, Subdomain_File=SubDomain_File, project_name=output_dir_name)
     

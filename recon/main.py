@@ -91,11 +91,14 @@ def main():
             error_msg("Enter domain only (e.g. example.com), not a full URL.")
             return
         # Check for existing scan
-        domain = _check_existing_scan(domain)
-        if not domain:
+        project_name = _check_existing_scan(domain)
+        if not project_name:
             return
         section_header(f"DOMAIN RECON -- {domain}")
-        DomainHandler(domain)
+        if project_name != domain:
+            info_msg(f"Scan results will be saved to: results/{project_name}")
+            
+        DomainHandler(domain, project_name=project_name)
 
     # ── IP Mode ──
     elif choice == '2':
@@ -124,12 +127,16 @@ def main():
 
         # Check for existing scan (uses first IP as domain identifier)
         target_name = ips[0] if len(ips) == 1 else ips[0]
-        target_name = _check_existing_scan(target_name)
-        if not target_name:
+        project_name = _check_existing_scan(target_name)
+        if not project_name:
             return
 
         section_header(f"IP RECON -- {len(ips)} target(s)")
-        IpHandler(ips, domain=target_name)
+        if project_name != target_name:
+            info_msg(f"Scan results will be saved to: results/{project_name}")
+            
+        # For IP Handler, 'domain' param is the target label, 'project_name' is output dir
+        IpHandler(ips, domain=target_name, project_name=project_name)
 
     # ── Chaining Logic ──
     post_recon_interactive()
