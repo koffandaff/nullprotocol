@@ -18,6 +18,13 @@ from utility import (
 )
 from rich.prompt import Prompt, Confirm
 
+# SQLite database support
+try:
+    from db_handler import DatabaseHandler
+    DB_AVAILABLE = True
+except ImportError:
+    DB_AVAILABLE = False
+
 from attack_chain import (
     hydra_ssh, hydra_ftp, hydra_http_form,
     hydra_smtp, hydra_mysql, hydra_rdp,
@@ -29,14 +36,41 @@ from attack_chain import (
 
 
 def load_recon_data(results_dir):
-    """Find and load enhanced.json from the most recent scan."""
+    """Find and load scan data. Tries SQLite DB first, falls back to JSON."""
     if not os.path.exists(results_dir):
         error_msg(f"Results directory not found: {results_dir}")
         return None, None
 
-    # Find all enhanced.json files
     scans = []
+
+    # ── Try SQLite databases first ──
+    if DB_AVAILABLE:
+        for domain_dir in sorted(os.listdir(results_dir)):
+            db_path = os.path.join(results_dir, domain_dir, 'FinalReport', 'nullprotocol.db')
+            if os.path.exists(db_path):
+                try:
+                    db = DatabaseHandler(db_path)
+                    db_scans = db.get_all_scans()
+                    for s in db_scans:
+                        data = db.get_full_scan_as_dict(s['id'])
+                        if data:
+                            scans.append({
+                                'dir': domain_dir,
+                                'domain': data.get('domain', domain_dir),
+                                'timestamp': data.get('timestamp', ''),
+                                'path': db_path,
+                                'data': data,
+                                'source': 'db'
+                            })
+                    db.close()
+                except Exception:
+                    pass
+
+    # ── JSON fallback for dirs not loaded from DB ──
+    loaded_dirs = {s['dir'] for s in scans}
     for domain_dir in sorted(os.listdir(results_dir)):
+        if domain_dir in loaded_dirs:
+            continue
         json_path = os.path.join(results_dir, domain_dir, 'FinalReport', 'enhanced.json')
         if os.path.exists(json_path):
             try:
@@ -47,7 +81,8 @@ def load_recon_data(results_dir):
                     'domain': data.get('domain', domain_dir),
                     'timestamp': data.get('timestamp', ''),
                     'path': json_path,
-                    'data': data
+                    'data': data,
+                    'source': 'json'
                 })
             except Exception:
                 continue
@@ -62,7 +97,8 @@ def load_recon_data(results_dir):
 
     console.print()
     for i, scan in enumerate(scans, 1):
-        console.print(f"  [cyan]{i}[/cyan] -- {scan['domain']} ({scan['timestamp'][:19]})")
+        src_tag = f" [dim][{scan.get('source', 'json')}][/dim]"
+        console.print(f"  [cyan]{i}[/cyan] -- {scan['domain']} ({scan['timestamp'][:19]}){src_tag}")
     console.print()
 
     choice = Prompt.ask("  [bold white]Select scan[/bold white]", default="1")

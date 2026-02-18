@@ -353,6 +353,37 @@ class WebScanner:
         return f"Accessible ({content_length} bytes)"
 
     # ─── VULNERABILITY SCAN ──────────────────────────────────
+    # ── Content signatures: regex patterns that MUST match for a finding to be real ──
+    # This eliminates false positives from soft-404s and custom error pages.
+    _CONTENT_SIGNATURES = {
+        'git_config':       r'\[core\]|\[remote',
+        'git_head':         r'^ref:\s*refs/',
+        'environment_file': r'[A-Z_]+=',
+        'environment_backup': r'[A-Z_]+=',
+        'docker_compose':   r'(version:|services:)',
+        'dockerfile':       r'(FROM |RUN |COPY |EXPOSE )',
+        'sql_dump':         r'(CREATE TABLE|INSERT INTO|DROP TABLE)',
+        'config_backup':    r'(\$[a-z_]+\s*=|<\?php)',
+        'aws_credentials':  r'\[default\]|aws_access_key_id',
+        'kube_config':      r'(apiVersion:|clusters:|contexts:)',
+        'laravel_log':      r'\[\d{4}-\d{2}-\d{2}',
+        'spring_actuator_env': r'"propertySources"|"activeProfiles"',
+        'swagger_json':     r'"swagger"|"openapi"',
+        'openapi_spec':     r'"openapi"|"paths"',
+        'graphql':          r'"data"|"__schema"|query',
+        'phpmyadmin':       r'phpMyAdmin|PMA_',
+        'adminer':          r'adminer|Login -',
+        'robots_txt':       r'(User-agent|Disallow|Sitemap)',
+        'sitemap':          r'<urlset|<sitemapindex',
+        'security_txt':     r'(Contact:|Policy:|Acknowledgments:)',
+        'package_json':     r'"name"|"version"|"dependencies"',
+        'composer_json':    r'"require"|"name"|"autoload"',
+        'wp_config_backup': r"define\s*\(\s*'DB_",
+        'htpasswd':         r'^[^:]+:\$',
+        'bash_history':     r'^(cd |ls |cat |sudo |ssh )',
+        'ssh_key':          r'^ssh-(rsa|ed25519|ecdsa) ',
+    }
+
     def quick_vuln_scan(self, url, timeout=45):
         safe_name = self.get_safe_filename(url)
         output_file = os.path.join(
@@ -397,69 +428,93 @@ class WebScanner:
             ("SSH Key", "/.ssh/id_rsa.pub", "high"),
         ]
 
+        # ── Step 1: Grab a soft-404 fingerprint ──
+        # Request a path that definitely doesn't exist.  If the server returns
+        # 200 for everything (custom error page), we capture the body hash so
+        # we can reject identical bodies later.
+        soft404_hash = None
+        try:
+            canary = requests.get(
+                url.rstrip('/') + '/zZ9_n0t_r3aL_8675309.bak',
+                timeout=1.5, verify=False, allow_redirects=False
+            )
+            if canary.status_code == 200:
+                soft404_hash = hash(canary.text.strip())
+        except Exception:
+            pass
+
+        # ── Step 2: Parallel check function ──
+        timeout_count = [0]  # mutable counter shared across threads
+
+        def _check_single(check_name, path, severity):
+            """Check one path and return a finding dict or None."""
+            if timeout_count[0] >= 5:
+                return None  # early-terminate: host is likely firewalled
+
+            full_url = url.rstrip('/') + path
+            try:
+                resp = requests.get(
+                    full_url, timeout=1.5,
+                    verify=False, allow_redirects=False
+                )
+            except requests.exceptions.Timeout:
+                timeout_count[0] += 1
+                return None
+            except Exception:
+                return None
+
+            if resp.status_code != 200 or len(resp.text) <= 20:
+                return None
+
+            body = resp.text
+
+            # Reject soft-404 pages (identical to the canary body)
+            if soft404_hash and hash(body.strip()) == soft404_hash:
+                return None
+
+            # Content signature validation — if we have a signature for this
+            # check type, the body MUST match it to be considered real.
+            type_key = check_name.lower().replace(' ', '_')
+            sig = self._CONTENT_SIGNATURES.get(type_key)
+            if sig and not re.search(sig, body[:2048], re.IGNORECASE | re.MULTILINE):
+                return None
+
+            return {
+                'type': type_key,
+                'path': path,
+                'severity': severity,
+                'description': f"{check_name} exposed at {path}",
+                'response_length': len(body)
+            }
+
+        # ── Step 3: Run all checks in parallel ──
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool:
+            futures = {
+                pool.submit(_check_single, name, path, sev): (name, path, sev)
+                for name, path, sev in checks
+            }
+            for future in concurrent.futures.as_completed(futures):
+                result = future.result()
+                if result:
+                    findings.append(result)
+
+        # ── Step 4: Write report file ──
+        severity_icons = {
+            'critical': '[!!]', 'high': '[!]', 'medium': '[~]',
+            'low': '[-]', 'info': '[.]'
+        }
+        severity_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3, 'info': 4}
+        findings.sort(key=lambda x: severity_order.get(x['severity'], 5))
+
         with open(output_file, 'w') as f:
             f.write(f"Vulnerability Scan for: {url}\n")
             f.write("=" * 60 + "\n\n")
-
-            for check_name, path, severity in checks:
-                full_url = url.rstrip('/') + path
-                try:
-                    response = requests.get(
-                        full_url, timeout=2,
-                        verify=False, allow_redirects=False
-                    )
-
-                    if response.status_code == 200 and len(response.text) > 20:
-                        findings.append({
-                            'type': check_name.lower().replace(' ', '_'),
-                            'path': path,
-                            'severity': severity,
-                            'description': f"{check_name} exposed at {path}",
-                            'response_length': len(response.text)
-                        })
-
-                        icon = {'critical': '[!!]', 'high': '[!]', 'medium': '[~]', 'low': '[-]', 'info': '[.]'}.get(severity, '[.]')
-                        f.write(f"{icon} [{severity.upper()}] {check_name}: {full_url}\n")
-
-                except Exception:
-                    continue
-
-            # Security headers check
-            # Security headers check - DISABLED to reduce noise
-            # try:
-            #     response = requests.head(url, timeout=3, verify=False)
-            #     headers = response.headers
-
-            #     f.write("\n\nSecurity Headers Analysis:\n")
-            #     f.write("-" * 40 + "\n")
-            #     security_checks = {
-            #         'X-Frame-Options': ('Missing clickjacking protection', 'medium'),
-            #         'X-Content-Type-Options': ('Missing MIME sniffing protection', 'low'),
-            #         'Content-Security-Policy': ('Missing CSP header', 'medium'),
-            #         'Strict-Transport-Security': ('Missing HSTS header', 'medium'),
-            #     }
-
-            #     missing = []
-            #     for header, (message, sev) in security_checks.items():
-            #         if header not in headers:
-            #             missing.append(message)
-            #             f.write(f"  [x] {message}\n")
-            #         else:
-            #             f.write(f"  [+] {header} present\n")
-
-            #     if missing:
-            #         findings.append({
-            #             'type': 'missing_security_headers',
-            #             'severity': 'medium',
-            #             'description': f"Missing {len(missing)} security headers",
-            #             'details': missing
-            #         })
-
-            # except Exception:
-            #     f.write("[!] Could not check security headers\n")
-
-        # Sort by severity
-        severity_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3, 'info': 4}
-        findings.sort(key=lambda x: severity_order.get(x['severity'], 5))
+            if findings:
+                for finding in findings:
+                    icon = severity_icons.get(finding['severity'], '[.]')
+                    f.write(f"{icon} [{finding['severity'].upper()}] "
+                            f"{finding['type']}: {url.rstrip('/')}{finding['path']}\n")
+            else:
+                f.write("No significant vulnerabilities found.\n")
 
         return findings

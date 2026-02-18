@@ -9,9 +9,17 @@ import os
 import sys
 import json
 import glob
+import shutil
 from datetime import datetime
-from flask import Flask, render_template, jsonify, send_file, request, abort
+from flask import Flask, render_template, jsonify, send_file, request, abort, redirect, url_for
 import subprocess
+
+# SQLite database support
+try:
+    from db_handler import DatabaseHandler, find_db_files
+    DB_AVAILABLE = True
+except ImportError:
+    DB_AVAILABLE = False
 
 app = Flask(__name__,
             template_folder=os.path.join(os.path.dirname(__file__), 'templates'),
@@ -33,12 +41,36 @@ else:
 
 
 def get_all_scans():
-    """Discover all scan result directories and their enhanced.json files."""
+    """Discover all scan results. Tries SQLite first, falls back to JSON."""
     scans = []
     if not os.path.exists(RESULTS_DIR):
         return scans
 
+    # Track which domain_dirs we've already loaded from DB
+    loaded_dirs = set()
+
+    # ── Try SQLite databases first ──
+    if DB_AVAILABLE:
+        for domain_dir in sorted(os.listdir(RESULTS_DIR), reverse=True):
+            db_path = os.path.join(RESULTS_DIR, domain_dir, 'FinalReport', 'nullprotocol.db')
+            if os.path.exists(db_path):
+                try:
+                    db = DatabaseHandler(db_path)
+                    db_scans = db.get_all_scans()
+                    for s in db_scans:
+                        report_path = os.path.join(RESULTS_DIR, domain_dir, 'FinalReport', 'report.txt')
+                        s['dir_name'] = domain_dir
+                        s['has_report'] = os.path.exists(report_path)
+                        scans.append(s)
+                    loaded_dirs.add(domain_dir)
+                    db.close()
+                except Exception:
+                    pass
+
+    # ── JSON fallback for dirs without a DB ──
     for domain_dir in sorted(os.listdir(RESULTS_DIR), reverse=True):
+        if domain_dir in loaded_dirs:
+            continue
         report_dir = os.path.join(RESULTS_DIR, domain_dir, 'FinalReport')
         json_path = os.path.join(report_dir, 'enhanced.json')
         report_path = os.path.join(report_dir, 'report.txt')
@@ -64,8 +96,28 @@ def get_all_scans():
 
 
 def load_scan_data(domain_dir):
-    """Load full enhanced.json for a scan."""
-    json_path = os.path.join(RESULTS_DIR, domain_dir, 'FinalReport', 'enhanced.json')
+    """Load full scan data. Tries SQLite first, falls back to JSON."""
+    report_dir = os.path.join(RESULTS_DIR, domain_dir, 'FinalReport')
+
+    # ── Try SQLite first ──
+    if DB_AVAILABLE:
+        db_path = os.path.join(report_dir, 'nullprotocol.db')
+        if os.path.exists(db_path):
+            try:
+                db = DatabaseHandler(db_path)
+                # Get the most recent scan in this DB
+                db_scans = db.get_all_scans()
+                if db_scans:
+                    data = db.get_full_scan_as_dict(db_scans[0]['id'])
+                    db.close()
+                    if data:
+                        return data
+                db.close()
+            except Exception:
+                pass
+
+    # ── JSON fallback ──
+    json_path = os.path.join(report_dir, 'enhanced.json')
     if not os.path.exists(json_path):
         return None
     with open(json_path, 'r') as f:
@@ -94,6 +146,24 @@ def load_brute_results(domain_dir):
 
 
 # ─── ROUTES ────────────────────────────────────────────────
+
+@app.route('/scan/<domain_dir>/delete', methods=['POST'])
+def delete_scan(domain_dir):
+    """Permanently delete a scan's result directory."""
+    # Security: validate domain_dir has no path traversal
+    if '..' in domain_dir or '/' in domain_dir or '\\' in domain_dir:
+        abort(400)
+
+    scan_path = os.path.join(RESULTS_DIR, domain_dir)
+    if not os.path.isdir(scan_path):
+        abort(404)
+
+    try:
+        shutil.rmtree(scan_path)
+        return redirect(url_for('index'))
+    except Exception as e:
+        return jsonify({'error': f'Failed to delete: {e}'}), 500
+
 
 @app.route('/')
 def index():
@@ -152,6 +222,42 @@ def api_scan_data(domain_dir):
     if not data:
         return jsonify({'error': 'Scan not found'}), 404
     return jsonify(data)
+
+
+@app.route('/api/search')
+def api_search():
+    """Search scans via SQLite database.
+    Query params: domain, severity, date_from, date_to
+    """
+    if not DB_AVAILABLE:
+        return jsonify({'error': 'Database support not available'}), 501
+
+    domain = request.args.get('domain')
+    severity = request.args.get('severity')
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+
+    all_results = []
+    if os.path.exists(RESULTS_DIR):
+        for domain_dir in os.listdir(RESULTS_DIR):
+            db_path = os.path.join(RESULTS_DIR, domain_dir, 'FinalReport', 'nullprotocol.db')
+            if os.path.exists(db_path):
+                try:
+                    db = DatabaseHandler(db_path)
+                    results = db.search_scans(
+                        domain=domain,
+                        severity=severity,
+                        date_from=date_from,
+                        date_to=date_to
+                    )
+                    for r in results:
+                        r['dir_name'] = domain_dir
+                    all_results.extend(results)
+                    db.close()
+                except Exception:
+                    continue
+
+    return jsonify(all_results)
 
 
 @app.route('/export/pdf/<domain_dir>')

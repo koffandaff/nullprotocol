@@ -82,3 +82,44 @@ This is the central source of truth for a scan. It aggregates all data.
     - The Enhancer calculates "Service Targets" (e.g., "This IP has SSH open").
     - It saves this in `enhanced.json`.
     - `brute/main.py` reads `enhanced.json` and looks specifically for the `service_targets` key to populate the attack menu.
+
+---
+
+## Database-Enhanced Data Flow
+
+With the SQLite integration, the pipeline now uses **dual-write** and **fallback reads**:
+
+```mermaid
+graph TD
+    subgraph Recon [Reconnaissance Phase]
+        Enhancer[ReconEnhancer.py]
+    end
+
+    subgraph Storage [Data Persistence - Dual Write]
+        Enhancer -->|"1. Write JSON"| JSON[enhanced.json]
+        Enhancer -->|"2. Write DB"| DB["nullprotocol.db<br/>(SQLite)"]
+    end
+
+    subgraph Consumption [Consumption Phase - DB First, JSON Fallback]
+        DB -->|"Try DB first"| Dashboard[hostrecon.py]
+        JSON -.->|"Fallback"| Dashboard
+        DB -->|"Try DB first"| Brute[brute/main.py]
+        JSON -.->|"Fallback"| Brute
+        DB -->|"SQL queries"| SearchAPI["/api/search endpoint"]
+    end
+```
+
+### Key Behaviors
+
+| Component | Write | Read |
+|---|---|---|
+| `ReconEnhancer.py` | JSON ✅ + SQLite ✅ | — |
+| `hostrecon.py` | — | SQLite first → JSON fallback |
+| `brute/main.py` | — | SQLite first → JSON fallback |
+| `/api/search` | — | SQLite only (501 if unavailable) |
+
+### Backward Compatibility
+
+- **Old scans** (pre-DB): Only have `enhanced.json` → consumers fall back to JSON automatically
+- **New scans**: Have both files → consumers read from SQLite for faster queries
+- **DB deleted**: JSON copy still exists → system continues working

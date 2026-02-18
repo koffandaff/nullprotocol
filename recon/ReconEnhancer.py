@@ -22,6 +22,7 @@ from ReconEnhancerTools.ollama_handler import (
     analyze_findings_with_ollama, suggest_exploits_with_ollama
 )
 from ReconEnhancerTools.crawler import SQLiCrawler
+from db_handler import DatabaseHandler
 from utility import (
     console, section_header, status_msg, success_msg,
     error_msg, warning_msg, info_msg, make_table, get_progress_bar
@@ -39,6 +40,7 @@ class ReconEnhancer:
         self.data_dir = f'{self.basedir}/FinalReport'
         self.report_file = f'{self.data_dir}/report.txt'
         self.json_file = f'{self.data_dir}/enhanced.json'
+        self.db_file = f'{self.data_dir}/nullprotocol.db'
 
         os.makedirs(self.data_dir, exist_ok=True)
 
@@ -56,6 +58,14 @@ class ReconEnhancer:
         self.exploit_searcher = EnhancedExploitSearcher(self.data_dir)
         self.ip_analyzer = IPAnalyzer(self.data_dir)
         self.crawler = SQLiCrawler(self.data_dir)
+
+        # Database handler (SQLite persistence alongside JSON)
+        try:
+            self.db = DatabaseHandler(self.db_file)
+            info_msg("SQLite database initialized")
+        except Exception as e:
+            self.db = None
+            warning_msg(f"SQLite init failed, JSON-only mode: {e}")
 
         # Ollama integration
         self.use_ollama = False
@@ -404,8 +414,14 @@ class ReconEnhancer:
         
         return attacks
 
-    def scan_web_target(self, target):
-        """Scan a single web target."""
+    def scan_web_target(self, target, _vuln_cache=None):
+        """Scan a single web target.
+
+        Args:
+            target: Target dict with ip, url, port, service, etc.
+            _vuln_cache: Optional shared dict {ip: vuln_results} to avoid
+                         running the same vuln scan on identical IPs.
+        """
         status_msg(f"Scanning web target: {target['url']}")
         
         results = {
@@ -438,10 +454,18 @@ class ReconEnhancer:
         except Exception as e:
             warning_msg(f"API check failed: {e}")
         
-        # Vulnerability scan
+        # Vulnerability scan — deduplicate by IP
+        ip = target.get('ip', '')
         try:
-            vuln_results = self.web_scanner.quick_vuln_scan(target['url'])
-            results['vulnerabilities'] = vuln_results
+            if _vuln_cache is not None and ip in _vuln_cache:
+                # Reuse cached results instead of re-scanning the same IP
+                results['vulnerabilities'] = _vuln_cache[ip]
+                info_msg(f"Reusing vuln scan for {ip} (already scanned)")
+            else:
+                vuln_results = self.web_scanner.quick_vuln_scan(target['url'])
+                results['vulnerabilities'] = vuln_results
+                if _vuln_cache is not None and ip:
+                    _vuln_cache[ip] = vuln_results
         except Exception as e:
             warning_msg(f"Vulnerability scan failed: {e}")
         
@@ -713,6 +737,8 @@ class ReconEnhancer:
         all_results['service_targets_count'] = len(service_targets)
         
         # 2. Scan web targets (parallelized for speed)
+        # Shared vuln cache: {ip: vuln_results} — avoids duplicate scans on same IP
+        _vuln_cache = {}
         if web_targets:
             section_header(f"Step 2/7 -- Scanning {len(web_targets)} Web Targets")
             self.write_section_header("WEB TARGETS")
@@ -720,7 +746,7 @@ class ReconEnhancer:
             with get_progress_bar() as progress:
                 task_id = progress.add_task("Web scan", total=len(web_targets))
                 with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                    future_to_target = {executor.submit(self.scan_web_target, t): t for t in web_targets}
+                    future_to_target = {executor.submit(self.scan_web_target, t, _vuln_cache): t for t in web_targets}
                     for future in concurrent.futures.as_completed(future_to_target):
                         target = future_to_target[future]
                         try:
@@ -800,7 +826,7 @@ class ReconEnhancer:
 
                 # Also add the main domain if not already covered
                 if self.domain:
-                    for proto in ['http', 'https']:
+                    for proto in ['https', 'http']:
                         d_url = f"{proto}://{self.domain}"
                         d_parsed = urlparse(d_url)
                         if d_parsed.netloc not in seen_crawl_domains:
@@ -809,9 +835,24 @@ class ReconEnhancer:
 
                 info_msg(f"Crawling {len(crawl_targets)} unique hosts (deduplicated from {len(web_targets)} targets)")
 
-                for url in crawl_targets[:8]:  # Cap at 8 unique hosts
-                    crawl_data = self.crawler.crawl(url)
-                    all_results['crawler'][url] = crawl_data
+                # Parallelize crawling — each target gets its own crawler instance
+                capped_targets = crawl_targets[:8]
+
+                def _crawl_one(url):
+                    """Crawl a single URL with a fresh crawler instance."""
+                    from ReconEnhancerTools.crawler import SQLiCrawler
+                    mini_crawler = SQLiCrawler(self.data_dir, max_pages=150, timeout=8)
+                    return url, mini_crawler.crawl(url)
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+                    futures = {executor.submit(_crawl_one, u): u for u in capped_targets}
+                    for future in concurrent.futures.as_completed(futures):
+                        try:
+                            url, crawl_data = future.result()
+                            all_results['crawler'][url] = crawl_data
+                        except Exception as e:
+                            warning_msg(f"Crawler failed for {futures[future]}: {e}")
+
                 self.crawler.save_results(self.domain)
                 
                 total_sqli = sum(
@@ -902,33 +943,92 @@ class ReconEnhancer:
             all_services.extend(ip_data.get('services_found', []))
         service_counter = Counter(all_services)
         
+        # ── Identify high-value / high-risk services ──
+        HIGH_VALUE_SERVICES = {
+            'ssh', 'mysql', 'postgresql', 'postgres', 'mssql', 'ms-sql',
+            'mongodb', 'redis', 'rdp', 'ms-wbt-server', 'ftp', 'telnet',
+            'smb', 'microsoft-ds', 'netbios-ssn', 'ldap', 'vnc',
+            'docker', 'kubernetes', 'kube-apiserver', 'oracle', 'elastic',
+            'memcached', 'cassandra', 'rabbitmq', 'mqtt'
+        }
+        high_value_found = []  # list of (service, port, ip)
+        for st in all_results.get('service_targets', []):
+            t = st.get('target', {})
+            svc = (t.get('service') or '').lower()
+            if svc in HIGH_VALUE_SERVICES:
+                high_value_found.append((svc.upper(), t.get('port', '?'), t.get('ip', '')))
+        # Also check web targets for non-HTTP services on same hosts
+        for wt in all_results.get('web_targets', []):
+            t = wt.get('target', {})
+            svc = (t.get('service') or '').lower()
+            if svc in HIGH_VALUE_SERVICES:
+                high_value_found.append((svc.upper(), t.get('port', '?'), t.get('ip', '')))
+        # Deduplicate
+        high_value_found = list(set(high_value_found))
+        high_value_found.sort(key=lambda x: x[0])
+        
+        # Store in summary dict
+        all_results['summary'] = {
+            'total_vulns': total_vulns,
+            'severity_counts': severity_counts,
+            'total_exploits': total_exploits,
+            'exploit_counts': exploit_counts,
+            'total_open_ports': total_open_ports,
+            'high_value_services': [{'service': s, 'port': p, 'ip': ip} for s, p, ip in high_value_found],
+        }
+        
         # Write summary to report file
         with open(self.report_file, 'a') as f:
             f.write(f"Scan Duration: {elapsed:.1f} seconds\n")
             f.write(f"Total Targets: {len(targets)}\n")
             f.write(f"  Web: {len(web_targets)}, Service: {len(service_targets)}, IPs: {len(self.ips)}\n")
-            f.write(f"Vulnerabilities: {total_vulns}\n")
-            f.write(f"Exploits: {total_exploits}\n")
+            if total_vulns > 0:
+                f.write(f"Vulnerabilities: {total_vulns}\n")
+                for sev in ['critical', 'high', 'medium', 'low']:
+                    if severity_counts[sev] > 0:
+                        f.write(f"  {sev.upper()}: {severity_counts[sev]}\n")
+            else:
+                f.write("Vulnerabilities: No significant vulnerabilities found\n")
+            if total_exploits > 0:
+                f.write(f"Exploits: {total_exploits}\n")
             f.write(f"Open Ports: {total_open_ports}\n")
+            if high_value_found:
+                f.write("\n⚠  HIGH-VALUE SERVICES DETECTED:\n")
+                for svc, port, ip in high_value_found:
+                    f.write(f"  → {svc} on port {port} ({ip})\n")
             if service_counter:
-                f.write("Common Services: " + ", ".join(f"{s}({c})" for s, c in service_counter.most_common(5)) + "\n")
+                f.write("\nCommon Services: " + ", ".join(f"{s}({c})" for s, c in service_counter.most_common(5)) + "\n")
             f.write(f"\nOutput: {self.data_dir}/\n")
         
-        # Save JSON
+        # Save JSON (backward compatible)
         with open(self.json_file, 'w') as f:
             json.dump(all_results, f, indent=2)
+
+        # Save to SQLite database (enhanced persistence)
+        if self.db:
+            try:
+                all_results['scan_duration'] = elapsed
+                scan_id = self.db.save_full_scan(all_results)
+                if scan_id:
+                    success_msg(f"Results persisted to SQLite (scan_id={scan_id})")
+            except Exception as e:
+                warning_msg(f"SQLite save failed (JSON still saved): {e}")
         
         # Beautiful console summary
+        vuln_str = str(total_vulns) if total_vulns > 0 else "None found"
         summary_rows = [
             ("Duration", f"{elapsed:.1f}s"),
             ("Web Targets", str(len(web_targets))),
             ("Service Targets", str(len(service_targets))),
             ("IPs Analyzed", str(len(self.ips))),
             ("Open Ports", str(total_open_ports)),
-            ("Vulnerabilities", str(total_vulns)),
+            ("Vulnerabilities", vuln_str),
             ("Exploits Found", str(total_exploits)),
             ("Ollama Analysis", "Yes" if all_results.get('ollama_analysis') else "No"),
         ]
+        if high_value_found:
+            hv_str = ", ".join(f"{s}({p})" for s, p, _ in high_value_found[:8])
+            summary_rows.insert(5, ("⚠ High-Value Services", hv_str))
         make_table(
             "SCAN COMPLETE",
             [("Metric", "cyan"), ("Value", "green")],

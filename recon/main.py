@@ -15,7 +15,49 @@ from utility import (
 from rich.prompt import Prompt, IntPrompt, Confirm
 import sys
 import os
+import shutil
 import subprocess
+
+
+def _check_existing_scan(domain):
+    """Check if a scan directory already exists for this target.
+    Returns the domain name to use (may be renamed) or None to cancel."""
+    scan_dir = os.path.join('results', domain)
+    if not os.path.isdir(scan_dir):
+        return domain  # No conflict, proceed normally
+
+    # Existing scan found — prompt user
+    warning_msg(f"Existing scan data found for '{domain}' at {scan_dir}/")
+    console.print()
+    console.print("  [bold cyan]1[/bold cyan]  -->  [bold]Overwrite[/bold] (delete old results and rescan)")
+    console.print("  [bold cyan]2[/bold cyan]  -->  [bold]Rename[/bold] (save as new scan with suffix)")
+    console.print("  [bold cyan]3[/bold cyan]  -->  [bold]Cancel[/bold] (abort scan)")
+    console.print()
+
+    choice = Prompt.ask("  [bold white]Select option[/bold white]", choices=["1", "2", "3"], default="1")
+
+    if choice == '1':
+        # Overwrite — delete existing directory
+        try:
+            shutil.rmtree(scan_dir)
+            success_msg(f"Deleted old scan data for '{domain}'")
+        except Exception as e:
+            error_msg(f"Could not delete {scan_dir}: {e}")
+            return None
+        return domain
+
+    elif choice == '2':
+        # Find next available suffix
+        suffix = 2
+        while os.path.isdir(os.path.join('results', f"{domain}_{suffix}")):
+            suffix += 1
+        new_name = f"{domain}_{suffix}"
+        info_msg(f"Scan will be saved as '{new_name}'")
+        return new_name
+
+    else:
+        info_msg("Scan cancelled.")
+        return None
 
 
 def main():
@@ -48,6 +90,10 @@ def main():
         if '://' in domain:
             error_msg("Enter domain only (e.g. example.com), not a full URL.")
             return
+        # Check for existing scan
+        domain = _check_existing_scan(domain)
+        if not domain:
+            return
         section_header(f"DOMAIN RECON -- {domain}")
         DomainHandler(domain)
 
@@ -76,8 +122,14 @@ def main():
             error_msg("No IPs provided.")
             return
 
+        # Check for existing scan (uses first IP as domain identifier)
+        target_name = ips[0] if len(ips) == 1 else ips[0]
+        target_name = _check_existing_scan(target_name)
+        if not target_name:
+            return
+
         section_header(f"IP RECON -- {len(ips)} target(s)")
-        IpHandler(ips)
+        IpHandler(ips, domain=target_name)
 
     # ── Chaining Logic ──
     post_recon_interactive()
