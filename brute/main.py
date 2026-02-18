@@ -174,6 +174,11 @@ def identify_attack_opportunities(data):
         ip = target.get('ip', '')
         port = target.get('port', '')
 
+        # Skip if port is missing to avoid defaulting to standard ports 
+        # for services running on non-standard ports (if data was lost).
+        if not port:
+            continue
+
         if service == 'ssh' or port == '22':
             opportunities.append({
                 'type': 'ssh_brute',

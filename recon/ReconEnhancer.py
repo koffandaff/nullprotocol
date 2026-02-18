@@ -160,7 +160,8 @@ class ReconEnhancer:
                     continue
                 
                 for port_info in open_ports:
-                    port = str(port_info.get('port', ''))
+                    port_val = port_info.get('port', '')
+                    port = str(port_val).strip() if port_val is not None else ''
                     service = port_info.get('service', '').lower()
                     version = port_info.get('version', '')
                     

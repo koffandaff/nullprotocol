@@ -135,11 +135,24 @@ def load_report_txt(domain_dir):
 
 def load_brute_results(domain_dir):
     """Load brute force results if they exist."""
-    brute_path = os.path.join(RESULTS_DIR, domain_dir, 'BruteForce', 'brute_results.json')
+    brute_dir = os.path.join(RESULTS_DIR, domain_dir, 'BruteForce')
+    brute_path = os.path.join(brute_dir, 'brute_results.json')
     if os.path.exists(brute_path):
         try:
             with open(brute_path, 'r') as f:
-                return json.load(f)
+                results = json.load(f)
+            # Attach raw output text for Metasploit scans (and others)
+            for r in results:
+                output_file = (r.get('result') or {}).get('output_file', '')
+                if output_file and os.path.isfile(output_file):
+                    try:
+                        with open(output_file, 'r', errors='replace') as tf:
+                            r['raw_output'] = tf.read()[:5000]  # cap at 5KB
+                    except Exception:
+                        r['raw_output'] = ''
+                else:
+                    r['raw_output'] = ''
+            return results
         except Exception:
             return None
     return None

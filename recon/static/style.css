@@ -198,6 +198,18 @@ body {
 }
 
 /* ── Brute Force Section ───── */
+.brute-item-success {
+    border-left: 4px solid #28a745 !important;
+}
+
+.brute-item-fail {
+    border-left: 4px solid #dc3545 !important;
+}
+
+.brute-item-neutral {
+    border-left: 4px solid #6c757d !important;
+}
+
 .brute-success {
     background: rgba(40, 167, 69, 0.15);
     border-left: 3px solid #28a745;

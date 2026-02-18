@@ -187,6 +187,27 @@ class DatabaseHandler:
         except (json.JSONDecodeError, TypeError):
             return text
 
+    @staticmethod
+    def _parse_port(port_val):
+        """ robustly extract an integer port from a value which might be int, str, or dirty str like '80/tcp'."""
+        if port_val is None:
+            return 0
+        if isinstance(port_val, int):
+            return port_val
+        
+        s = str(port_val).strip()
+        if not s:
+            return 0
+        
+        # Extract digits only
+        digits = ''.join(filter(str.isdigit, s))
+        if digits:
+            try:
+                return int(digits)
+            except ValueError:
+                return 0
+        return 0
+
     # ──────────────────────────────────────────────────────────
     # WRITE — Individual Inserts
     # ──────────────────────────────────────────────────────────
@@ -222,11 +243,14 @@ class DatabaseHandler:
                        service_name=None, version=None,
                        banner=None, raw_service=None):
         """Insert a service/port and return its ID."""
+        # Ensure port is clean int
+        clean_port = self._parse_port(port)
+        
         cur = self.conn.execute("""
             INSERT INTO services (host_id, port, protocol,
                                   service_name, version, banner, raw_service)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (host_id, port, protocol, service_name, version, banner, raw_service))
+        """, (host_id, clean_port, protocol, service_name, version, banner, raw_service))
         self.conn.commit()
         return cur.lastrowid
 
@@ -344,13 +368,10 @@ class DatabaseHandler:
                 # Insert service for this web target
                 service_id = None
                 if host_id and port:
-                    try:
-                        port_int = int(port)
-                    except (ValueError, TypeError):
-                        port_int = 0
+                    clean_port = self._parse_port(port)
                     service_id = self.insert_service(
                         host_id=host_id,
-                        port=port_int,
+                        port=clean_port,
                         service_name=target.get('service', ''),
                         version=target.get('version', ''),
                         raw_service=target.get('raw_service', '')
@@ -400,13 +421,10 @@ class DatabaseHandler:
                 # Insert service
                 service_id = None
                 if host_id and port:
-                    try:
-                        port_int = int(port)
-                    except (ValueError, TypeError):
-                        port_int = 0
+                    clean_port = self._parse_port(port)
                     service_id = self.insert_service(
                         host_id=host_id,
-                        port=port_int,
+                        port=clean_port,
                         service_name=target.get('service', ''),
                         version=target.get('version', ''),
                         raw_service=target.get('raw_service', '')

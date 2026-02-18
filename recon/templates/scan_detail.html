@@ -430,42 +430,57 @@
                 </div>
                 <div class="card-body{% if brute_results %} p-0{% endif %}">
                     {% if brute_results %}
-                    <div class="table-responsive">
-                        <table class="table table-dark table-striped mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Attack</th>
-                                    <th>Status</th>
-                                    <th>Detail</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for r in brute_results %}
-                                <tr>
-                                    <td>{{ r.opportunity[:70] }}</td>
-                                    <td>
-                                        {% if r.error is defined %}
-                                        <span class="badge bg-danger">FAILED</span>
-                                        {% elif r.result is defined and r.result.success %}
-                                        <span class="badge bg-success">SUCCESS</span>
-                                        {% else %}
-                                        <span class="badge bg-secondary">NO FINDINGS</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if r.error is defined %}
-                                        <span class="text-danger">{{ r.error[:50] }}</span>
-                                        {% elif r.result is defined and r.result.success %}
-                                        <span class="brute-creds">{{ r.result.message[:60] }}</span>
-                                        {% elif r.result is defined %}
-                                        <span class="text-muted">{{ r.result.message[:60] if r.result.message else 'No
-                                            results' }}</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                    <div class="accordion" id="bruteAccordion">
+                        {% for r in brute_results %}
+                        {% set is_error = r.error is defined %}
+                        {% set is_success = (not is_error) and r.result is defined and r.result.success %}
+                        {% set status_class = 'success' if is_success else ('danger' if is_error else 'secondary') %}
+                        {% set status_label = 'SUCCESS' if is_success else ('FAILED' if is_error else 'NO FINDINGS') %}
+                        {% set border_class = 'brute-item-success' if is_success else ('brute-item-fail' if is_error
+                        else 'brute-item-neutral') %}
+                        <div class="accordion-item bg-transparent border-secondary {{ border_class }}">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed bg-transparent text-light" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#brute-{{ loop.index }}">
+                                    <span class="badge bg-{{ status_class }} me-2">{{ status_label }}</span>
+                                    {{ r.opportunity[:70] }}
+                                </button>
+                            </h2>
+                            <div id="brute-{{ loop.index }}" class="accordion-collapse collapse"
+                                data-bs-parent="#bruteAccordion">
+                                <div class="accordion-body">
+                                    {% if is_error %}
+                                    <div class="alert alert-danger py-2 mb-2">
+                                        <i class="bi bi-x-circle me-1"></i><strong>Error:</strong> {{ r.error }}
+                                    </div>
+                                    {% elif r.result is defined %}
+                                    <div class="mb-2">
+                                        <strong class="text-muted">Message:</strong>
+                                        <span class="{% if is_success %}brute-creds{% else %}text-muted{% endif %}">
+                                            {{ r.result.message|default('No details') }}
+                                        </span>
+                                    </div>
+                                    {% if r.result.output_file %}
+                                    <div class="mb-2">
+                                        <small class="text-muted"><i class="bi bi-file-text me-1"></i>Output:
+                                            <code>{{ r.result.output_file }}</code></small>
+                                    </div>
+                                    {% endif %}
+                                    {% endif %}
+
+                                    {% if r.raw_output %}
+                                    <details class="mt-2">
+                                        <summary class="text-cyan" style="cursor:pointer;font-size:0.85rem;">
+                                            <i class="bi bi-terminal me-1"></i>Raw Scan Output
+                                        </summary>
+                                        <pre class="mt-2 p-2 rounded text-light"
+                                            style="background:rgba(0,0,0,0.3);font-size:0.78rem;max-height:300px;overflow-y:auto;white-space:pre-wrap;">{{ r.raw_output }}</pre>
+                                    </details>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
                     </div>
                     {% else %}
                     <div class="brute-empty">
